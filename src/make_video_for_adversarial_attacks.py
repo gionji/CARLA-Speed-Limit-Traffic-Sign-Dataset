@@ -11,10 +11,6 @@ import os
 import string
 
 
-
-SPEED_CLASSSES_MAPPING = {30 : 0 , 60 : 1, 90 : 2 }
-
-
 def initialize_dataset_folders(output_folder_name_with_path):
     # Extract the dataset name from the output folder path
     dataset_name = os.path.basename(os.path.normpath(output_folder_name_with_path))
@@ -91,10 +87,8 @@ class DatasetExporter:
         self.image_width = image_width
         self.image_height = image_height
 
-
     def generate_hex_mark(self):
         return ''.join(random.choices(string.hexdigits, k=8))
-    
 
     def save_frame_and_annotations(self, frame, bounding_boxes_with_classes, image_ext='png'):
         hex_mark = self.hex_mark
@@ -111,7 +105,6 @@ class DatasetExporter:
         self.generate_yolo_annotations(annotation_path, bounding_boxes_with_classes)
 
         self.frame_number += 1
-
 
     def generate_yolo_annotations(self, annotation_filename, bounding_boxes_with_classes):
         with open(annotation_filename, "w") as annotation_file:
@@ -140,7 +133,7 @@ class MapDrawer:
 
         # Draw a triangle for the object at its position and orientation on the map
         triangle_points = np.array([
-            [map_x, map_y],
+            [map_x,   map_y],
             [map_x + 5, map_y + 10],
             [map_x - 5, map_y + 10]
         ], np.int32)
@@ -171,6 +164,7 @@ def build_projection_matrix(w, h, fov):
     K[0, 2] = w / 2.0
     K[1, 2] = h / 2.0
     return K
+
 
 def get_image_point(loc, K, w2c):
     # Calculate 2D projection of 3D coordinate
@@ -216,6 +210,8 @@ def get_random_weather():
     return weather_mod
 
 
+
+
 def get_yaw_from_3d_vector(vector):
     # Calculate the yaw angle using the arctan2 functionq
     yaw = math.atan2(vector.x, vector.y)
@@ -228,6 +224,7 @@ def get_yaw_from_3d_vector(vector):
         yaw_degrees += 360.0
 
     #yaw_degrees -= 180
+    
     return yaw_degrees
 
 
@@ -261,7 +258,6 @@ def can_objects_face_each_other(ego, sign):
     return see_each_other, ego_direction, sign_direction, difference_between_ego_and_sign, difference_between_sign_and_ego, dot_product_A_to_B, dot_product_B_to_A
 
 
-
 def is_bounding_box_within_frame(bbox, window_width, window_height):
     xmin, xmax, ymin, ymax = bbox
 
@@ -271,6 +267,25 @@ def is_bounding_box_within_frame(bbox, window_width, window_height):
     else:
         return False
 
+    
+
+# Function to save frames to a video
+def save_frames_as_video(frames, output_path, fps=30):
+    height, width, _ = frames[0].shape
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+    for frame in frames:
+        out.write(frame)
+
+    out.release()
+   
+
+
+# Define a custom distance function for Location objects
+def location_distance(loc1, loc2):
+    #print('Vertex to be matched! : ',loc1, loc2)
+    return np.sqrt((loc1.x - loc2.x) ** 2 + (loc1.y - loc2.y) ** 2)# + (loc1.z - loc2.z) ** 2)
 
 
 
@@ -278,9 +293,9 @@ def main():
     client = carla.Client('localhost', 2000)
 
     # set the map name or get it from the running carla instance
-    world  = client.get_world()
+    #world  = client.get_world()
     #world = client.load_world('Town07_more_speedsign')
-    #world = client.load_world('Town01')
+    world = client.load_world('Town01')
 
     debug= world.debug
 
@@ -290,8 +305,9 @@ def main():
     spawn_points = world.get_map().get_spawn_points()
 
     # spawn vehicle
-    vehicle_bp =bp_lib.find('vehicle.lincoln.mkz_2020')
-    vehicle = world.try_spawn_actor(vehicle_bp, random.choice(spawn_points))
+    vehicle_bp = bp_lib.find('vehicle.lincoln.mkz_2020')
+    # Create a new carla.Transform in a single line
+    vehicle = world.try_spawn_actor(vehicle_bp, random.choice(spawn_points)) 
 
     # spawn camera
     camera_bp = bp_lib.find('sensor.camera.rgb')
@@ -333,11 +349,10 @@ def main():
                 actor_.set_state(carla.TrafficLightState.Yellow)       
             else:
                 actor_.set_state(carla.TrafficLightState.Red) 
-            actor_.set_yellow_time(1.0)
+            actor_.set_yellow_time(0)
             actor_.set_green_time(1.0)
-            actor_.set_red_time(1.0)
+            actor_.set_red_time(0)
     traffic_light_color = ["green","orange","red"]
-
 
     # spawn other vehicles around the map
     for i in range(0):
@@ -388,8 +403,7 @@ def main():
     color = ""
     '''
     
-
-    ## list containing on vertex of the bounding boxes
+    ## list containing on vertex of the bounding boxes ------------------------------------------------------------------------------------------------
     # First contains the bboxes positions in the world of the speed limits but not the class
     # Second contains the bboxes of the speed "barrirer" and the type of the speedlimit, so the class
     vtx_bboxes = list()
@@ -399,18 +413,14 @@ def main():
     speedlimit_actors = world.get_actors().filter('traffic.speed_limit.*')
 
     # fill the list before to order it
-    for bbox in ts_bboxes:
-        vtx_bboxes.append( bbox.get_world_vertices(carla.Transform())[0] )
+    for bb in ts_bboxes:
+        vtx_bboxes.append( bb.get_world_vertices(carla.Transform())[0] )
 
     for speedlimit_actor in speedlimit_actors:
         vtx_sl_actors.append( speedlimit_actor.bounding_box.get_world_vertices(speedlimit_actor.get_transform())[0] )
 
     A = ts_bboxes
     B = speedlimit_actors
-
-    # Define a custom distance function for Location objects
-    def location_distance(loc1, loc2):
-        return np.sqrt((loc1.x - loc2.x) ** 2 + (loc1.y - loc2.y) ** 2 + (loc1.z - loc2.z) ** 2)
 
     # Calculate the pairwise distances between Location objects in A and B
     distances = np.zeros((len(A), len(B)))
@@ -426,14 +436,21 @@ def main():
 
     # Reorder list B based on the optimal assignment
     ordered_actors_vector = [B[ int(col) ] for col in col_indices]
-   
+
+    #for i in range(0, len(ordered_actors_vector)):
+    #    print( ordered_actors_vector[i].bounding_box.get_world_vertices(ordered_actors_vector[i].get_transform())[0]  )
+
+    ##--------------------------------------------------------------------------------------------------------------------------------- 
     pause_update = False
-    dataset_frame_count = 0
+    slomo = False
+    fake = False
+    show_map = False
+    is_recording_on = False
 
     ## initialize the databese exporter
-    database_exporter = DatasetExporter("../../database_output", image_w, image_h)
-
-    samples_per_class_count = [0] * 14
+    #database_exporter = DatasetExporter("./database_output", image_w, image_h)
+    #array containing the frames to save as a video
+    frames = []
 
     while True:
 
@@ -445,12 +462,45 @@ def main():
         elif key == ord('p'):
             # Toggle pause/resume when 'p' is pressed
             pause_update = not pause_update
+        elif key == ord('s'):
+            # Toggle slomotion/resume when 'p' is pressed
+            slomo = not slomo
+        elif key == ord('w'):
+            # Trandomize weather when 'w' is pressed
+            weather = get_random_weather()
+            if weather is not None:
+                if isinstance(weather, str):
+                    world.set_weather(getattr(carla.WeatherParameters, weather))
+                elif isinstance(weather, dict):
+                    world.set_weather(carla.WeatherParameters(**weather))
+        elif key == ord('f'):
+            # Enable adverarial fake miscalssification  when 'f' is pressed
+            fake = not fake
+        elif key == ord('m'):
+            # THide/show map when 'm' is pressed
+            show_map = not show_map
+        elif key == ord('r'):
+            # THide/show map when 'm' is pressed
+            is_recording_on = not is_recording_on
+        elif key == ord('y'):    
+            # Save frames as a video
+            video_name = 'carla_video.avi'
+            save_frames_as_video(frames, video_name, fps=15)
+            print("The video was successfully saved")
 
         if pause_update: 
             continue
 
+        if slomo:
+            vehicle.enable_constant_velocity(carla.Vector3D(2, 0, 0))
+            vehicle.constant_velocity_enabled = True
+        else:
+            vehicle.disable_constant_velocity()
+            vehicle.constant_velocity_enabled = False
+
         # Retrieve and reshape the image
         world.tick()
+
         image = image_queue.get()
         img = np.reshape(np.copy(image.raw_data), (image.height, image.width, 4))
         clean_img = img.copy()
@@ -465,10 +515,10 @@ def main():
         font_thickness = 1
 
         ## get ego car position, forward, yaw vectors
-        ego_position = vehicle.get_transform().location
+        ego_position    = vehicle.get_transform().location
         ego_forward_vec = vehicle.get_transform().get_forward_vector()
-        ego_yaw = get_yaw_from_3d_vector(ego_forward_vec)
-        ego_coord = (int(ego_position.x), int(ego_position.y), int(ego_yaw))
+        ego_yaw         = get_yaw_from_3d_vector(ego_forward_vec)
+        ego_coord       = (int(ego_position.x), int(ego_position.y), int(ego_yaw))
 
         ## these contains the basic info of ego and signs like class, position and orientation. cold be use to draw a map on screen
         ego_tuple = ('EGO', int(ego_position.x), int(ego_position.y), int(ego_yaw))
@@ -477,56 +527,44 @@ def main():
 
         output_bboxes = list()
 
+
         ## print the iformations on the LEFT , BOTTOM
-        corner_string = "Ego Position: " + str(int(ego_position.x)) + "  " + str(int(ego_position.y)) + " Heading: " + str(int(ego_yaw))
-        cv2.putText(img, corner_string, (20, 20), font, font_scale, (0, 255, 0), font_thickness, cv2.LINE_AA)
+        if show_map:
+            corner_string = "Ego Position: " + str(int(ego_position.x)) + "  " + str(int(ego_position.y)) + " Heading: " + str(int(ego_yaw))
+            cv2.putText(img, corner_string, (20, 20), font, font_scale, (0, 255, 0), font_thickness, cv2.LINE_AA)
 
-        # count of framers
         signs_on_frame = 0
-        weather = get_random_weather()
-
-        if weather is not None:
-            if isinstance(weather, str):
-                world.set_weather(getattr(carla.WeatherParameters, weather))
-            elif isinstance(weather, dict):
-                world.set_weather(carla.WeatherParameters(**weather))
-    
-        ##### per tutti i bounding box
+                
         for i in range(0, len(bounding_box_set_traffic_signs)):   
-            bbox = bounding_box_set_traffic_signs[i]
-            bbox_location = bbox.location
+            bb = bounding_box_set_traffic_signs[i]
 
             ## get the sign class/speed limit in kmh
             speed_limit_str = ordered_actors_vector[i].type_id.split('limit.')[1]
-            speed_limit_class_id = SPEED_CLASSSES_MAPPING[ int(speed_limit_str) ]
-            bb_actor_yaw = ordered_actors_vector[i].bounding_box.rotation.yaw 
+            orientation_taken_by_actors_list = ordered_actors_vector[i].bounding_box.rotation.yaw 
 
-            bbox_actor_location = ordered_actors_vector[i].bounding_box.get_world_vertices(ordered_actors_vector[i].get_transform())[0] 
-            bbox_position_actor = (speed_limit_str, int(bbox_actor_location.x), int(bbox_actor_location.y), int(bb_actor_yaw))
-
-            distance_between_bbox_and_actor = np.sqrt((bbox_actor_location.x - bbox_location.x) ** 2 + (bbox_actor_location.y - bbox_location.y) ** 2)  
-            MATCH_DISTANCE_FILTER = 3.25
+            bbox_by_actor = ordered_actors_vector[i].bounding_box.get_world_vertices(ordered_actors_vector[i].get_transform())[0] 
+            bbox_by_actor_pos = (speed_limit_str, int(bbox_by_actor.x), int(bbox_by_actor.y), int(orientation_taken_by_actors_list))
+            distance_between_bbox_and_actor = np.sqrt((bbox_by_actor_pos[1] - bbox_by_bbs_pos[1]) ** 2 + (bbox_by_actor_pos[2] - bbox_by_bbs_pos[2]) ** 2)  
 
             # append the sign class, position and orientation to the list for draw a map
-            sign_orientation = int(bbox.rotation.yaw)
-
-            #bbox_position = (speed_limit_str, int(bbox.location.x), int(bbox.location.y), int(sign_orientation))
-
-            tgt_tuple_list.append( (speed_limit_str, int(bbox.location.x), int(bbox.location.y), sign_orientation) )
+            sign_orientation = int(bb.rotation.yaw)
+            bbox_by_bbs_pos = (speed_limit_str, int(bb.location.x), int(bb.location.y), int(sign_orientation))
+            
+            tgt_tuple_list.append( bbox_by_bbs_pos )
 
             # Filter for distance from ego vehicle
-            if bbox.location.distance(vehicle.get_transform().location) < 18:
+            if bb.location.distance(vehicle.get_transform().location) < 30:
                 #is the sign oin front of the camera
-                ray = bbox.location - vehicle.get_transform().location
+                ray = bb.location - vehicle.get_transform().location
                 dot_product = ego_forward_vec.dot(ray)
                                                                 
                 if dot_product > 1:
                     signs_on_frame += 1
                     # Cycle through the vertices
-                    verts = [v for v in bbox.get_world_vertices(carla.Transform())]
+                    verts = [v for v in bb.get_world_vertices(carla.Transform())]
                     for edge in edges:
                         # Join the vertices into edges
-                        p1 = get_image_point(bbox.location, K, world_2_camera)
+                        #p1 = get_image_point(bb.location, K, world_2_camera)
                         
                         x_max = -10000
                         x_min = 10000
@@ -549,65 +587,101 @@ def main():
                                 y_min = p[1]
 
                     ## Filter just the traffic sign i can see the front face
-                    sign_coord = (int(bbox.location.x), int(bbox.location.y), sign_orientation)
+                    sign_coord = (int(bb.location.x), int(bb.location.y), sign_orientation)
 
                     ##  calcultate if the sigh if faceing the car    
-                    can_i_see_the_face, dir_ego, dir_tgt, diff_AB, diff_BA, dot_A_to_B, dot_B_to_A, = can_objects_face_each_other( ego_coord, sign_coord ) 
-                    is_bbox_complete = is_bounding_box_within_frame(( x_min, x_max, y_min, y_max ), image_w, image_h)
+                    can_i_see_the_face, direction_ego, direction_sign, diff_AB, diff_BA, dot_product_A_to_B, dot_product_B_to_A, = can_objects_face_each_other( ego_coord, sign_coord ) 
+                    is_bbox_complete = is_bounding_box_within_frame(( x_min, x_max, y_min, y_max ), image_w, image_h) 
 
-                    if can_i_see_the_face and is_bbox_complete and distance_between_bbox_and_actor < MATCH_DISTANCE_FILTER:
-                        #print('distance: ', distance_between_bbox_and_actor)
-                        output_bboxes.append( (speed_limit_class_id, x_min, x_max, y_min, y_max)  )
-                        #counters for each class samples
-                        samples_per_class_count[ speed_limit_class_id ] += 1
+                    if can_i_see_the_face and is_bbox_complete and distance_between_bbox_and_actor < 3.18:
+                        output_bboxes.append( (speed_limit_str, x_min, x_max, y_min, y_max)  )
+
+                    # tect position params
+                    variation = 2
+                    x_min = x_min + random.randint(-variation, variation)
+                    x_max = x_max + random.randint(-variation, variation)
+                    y_min = y_min + random.randint(-variation, variation)
+                    y_max = y_max + random.randint(-variation, variation)
+
+                    text_x = int(x_min) - 30  # Adjust the position as needed
+                    text_y = int(y_min) -30  # Center the text vertically
+                    #compose the string to be print
+                    sign_position_str = ('x,y,r: '   + str(sign_coord) +
+                                    ' | dirs: '      + str(direction_ego) + ' ' + str(direction_sign) + 
+                                    ' | diffs: '     + str(diff_AB)       + ' ' + str(diff_BA) + 
+                                    ' | dots a_AB: ' + "{:.2f}".format(dot_product_A_to_B) + " {:.2f}".format(dot_product_B_to_A)
+                                    )
+                    
+                    speed_colors = {
+                        '30' : (0,255,0, 255),
+                        '60' : (255,255,0, 255),
+                        '90' : (0,255,255, 255),
+                        'STOP' : (0,0,250, 255),
+                        'ONE WAY' : (255,0,255, 255)
+                    }
+
+                    if fake:
+                        random_key = random.choice( list(speed_colors.keys()) )
+                        random_value = speed_colors[random_key]
+                        speed_limit_str = random_key
+                        font_color = random_value
+                    else:
+                        font_color = speed_colors[speed_limit_str]
+
+                    if is_bbox_complete and can_i_see_the_face:
+                        # draw the speed on the bbox
+                        cv2.putText(img, speed_limit_str, (text_x, text_y), font, 2, font_color, 3, cv2.LINE_AA)
+
+                        if distance_between_bbox_and_actor > 3.18:
+                            cv2.putText(img, 'WRONG', (text_x, text_y+40), font, 2, (0, 0, 255), 1, cv2.LINE_AA)
 
                         # draw the bbox on the image frame
-                        cv2.line(img, (int(x_min),int(y_min)), (int(x_max),int(y_min)), (0,255,255, 255), 1)
-                        cv2.line(img, (int(x_min),int(y_max)), (int(x_max),int(y_max)), (0,255,255, 255), 1)
-                        cv2.line(img, (int(x_min),int(y_min)), (int(x_min),int(y_max)), (0,255,255, 255), 1)
-                        cv2.line(img, (int(x_max),int(y_min)), (int(x_max),int(y_max)), (0,255,255, 255), 1)
-
-                        # tect position params
-                        text_x = int(x_min) - 10  # Adjust the position as needed
-                        text_y = (int(y_min) + int(y_max)) // 2  # Center the text vertically
-                        #compose the string to be print
-                        sign_position_str = ('x,y,r: '   + str(sign_coord) +
-                                        ' | dirs: '      + str(dir_ego) + ' ' + str(dir_tgt) + 
-                                        ' | diffs: '     + str(diff_AB)       + ' ' + str(diff_BA) + 
-                                        ' | dots a_AB: ' + "{:.2f}".format(dot_A_to_B) + " {:.2f}".format(dot_B_to_A)
-                                        )
-                        if can_i_see_the_face:
-                            font_color = (0, 255, 0)
-                        else:
-                            font_color = (0, 0, 255)
+                        box_color = font_color
+                        box_thickness = 2
+                        cv2.line(img, (int(x_min),int(y_min)), (int(x_max),int(y_min)), box_color, box_thickness)
+                        cv2.line(img, (int(x_min),int(y_max)), (int(x_max),int(y_max)), box_color, box_thickness)
+                        cv2.line(img, (int(x_min),int(y_min)), (int(x_min),int(y_max)), box_color, box_thickness)
+                        cv2.line(img, (int(x_max),int(y_min)), (int(x_max),int(y_max)), box_color, box_thickness)
 
                         ## draw a line connecting the sign with le string
                         cv2.line(img, (20, 20 * signs_on_frame + 20), (int(x_max),int(y_max)), font_color, 1)
-                        ## print info on the sign
-                        cv2.putText(img, speed_limit_str, (text_x, text_y), font, font_scale, font_color, font_thickness, cv2.LINE_AA)
+
                         ## pritn info on the ilst
                         _str = speed_limit_str + ' -- ' + sign_position_str
                         cv2.putText(img, _str, (20, 20 * signs_on_frame + 40), font, 0.4, font_color, font_thickness, cv2.LINE_AA)
 
-        ## draw the map
-        map_size = (400, 400)  # Size of the map
-        map_position = (100, 100)  # Position of the map in the screen (BOTTOM_RIGHT corner)
-        drawer = MapDrawer(map_size, map_position, img)
-        tgt_tuple_list.append( ego_tuple )
-        objects = tgt_tuple_list
-        #output_bboxes
-        for obj in objects:
-            drawer.draw_object(obj[1], obj[2], obj[3])
-        map_with_objects = drawer.get_map_with_objects()
+                        '''
+                        print('\nBoxx')
+                        print(bbox_by_actor_pos)
+                        print(bbox_by_bbs_pos)
+                        print(distance_between_bbox_and_actor)
+                        '''
+                    else:
+                        font_color = (0, 0, 255)
 
+        ## draw the map
+        if show_map:
+            map_size = (400, 400)  # Size of the map
+            map_position = (20, image_h - map_size[1] - 20)  # Position of the map in the screen (BOTTOM_RIGHT corner)
+            drawer = MapDrawer(map_size, map_position, img)
+
+            tgt_tuple_list.append( ego_tuple )
+            objects = tgt_tuple_list
+
+            for obj in objects:
+                drawer.draw_object(obj[1], obj[2], obj[3])
+            
+            img = drawer.get_map_with_objects()
+
+        if signs_on_frame > 0 and is_recording_on:
+            frames.append(img.copy()[:, :, :3])
 
         ## bboxes with class
-        if len(output_bboxes) > 0 :
-            dataset_frame_count = dataset_frame_count + 1
-            print( 'Speed limits in scene: ', samples_per_class_count, dataset_frame_count )
-            database_exporter.save_frame_and_annotations( clean_img, output_bboxes )
+        #if len(output_bboxes) > 0 :
+        #    print( 'Speed limits in scene: ', output_bboxes )
+        #    database_exporter.save_frame_and_annotations( clean_img, output_bboxes )
 
-        cv2.imshow('ImageWindowName', map_with_objects)
+        cv2.imshow('ImageWindowName', img)
 
     cv2.destroyAllWindows()
     camera.destroy()
@@ -617,9 +691,4 @@ def main():
 
 
 if __name__ == "__main__":
-
     main()
-
-
-
-
