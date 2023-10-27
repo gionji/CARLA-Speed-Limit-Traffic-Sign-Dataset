@@ -349,6 +349,7 @@ def main():
     # Calculate the camera projection matrix to project from 3D -> 2D
     K = build_projection_matrix(image_w, image_h, fov)
 
+
     # Set up the set of bounding boxes from the level
     # We filter for traffic lights and traffic signs
     # bounding_box_set_traffic_lights = world.get_level_bbs(carla.CityObjectLabel.TrafficLight)
@@ -505,7 +506,7 @@ def main():
             bbox_position_actor = (speed_limit_str, int(bbox_actor_location.x), int(bbox_actor_location.y), int(bb_actor_yaw))
 
             distance_between_bbox_and_actor = np.sqrt((bbox_actor_location.x - bbox_location.x) ** 2 + (bbox_actor_location.y - bbox_location.y) ** 2)  
-            MATCH_DISTANCE_FILTER = 3.25
+            MATCH_DISTANCE_FILTER = 3.25can_i_see_the_face
 
             # append the sign class, position and orientation to the list for draw a map
             sign_orientation = int(bbox.rotation.yaw)
@@ -615,6 +616,9 @@ def main():
     for npc in world.get_actors().filter('*vehicle*'):
         npc.destroy()
 
+
+def pack_the_dataset():
+    return
 
 if __name__ == "__main__":
 

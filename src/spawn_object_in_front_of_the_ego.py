@@ -303,7 +303,9 @@ def main():
    
     pause_update = False
 
-    object_to_spawn = world.get_blueprint_library().find('static.prop.bird_september_07')
+#    object_to_spawn = world.get_blueprint_library().find('static.prop.bird_september_07')  
+    object_to_spawn = world.get_blueprint_library().find('static.prop.mailbox')
+
     spawned_object = None
 
     while True:
@@ -329,7 +331,8 @@ def main():
         world_2_camera = np.array(camera.get_transform().get_inverse_matrix())
 
         # Define a function to spawn and delete an object in front of the ego car
-        spawned_object = spawn_and_delete_object(world, vehicle, object_to_spawn, carla.Vector3D(10, 3, 1), spawned_object)
+        fixed_vector = carla.Vector3D(10, 3, 1)
+        spawned_object = spawn_and_delete_object(world, vehicle, object_to_spawn, fixed_vector, spawned_object, noise_range=5)
  
         cv2.imshow('ImageWindowName', img)
 
