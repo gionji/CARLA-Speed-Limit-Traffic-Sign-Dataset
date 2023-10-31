@@ -52,7 +52,7 @@ class YOLOv7Detector:
     def initialize_detector(self):
         self.device = select_device(self.device)
         self.half = self.device.type != 'cpu'
-        print('device and half: ',self.device, self.half)
+        #print('device and half: ',self.device, self.half)
         
         # Load model
         self.model = attempt_load(self.weights, map_location=self.device)
@@ -101,12 +101,11 @@ class YOLOv7Detector:
         weights, view_img, save_txt, imgsz, trace =  self.weights,  self.view_img,  self.save_txt,  self.img_size, not self.no_trace
         
         # Directories
-        save_dir = Path(increment_path(Path( self.project) /  self.name, exist_ok= self.exist_ok))  # increment run
-        (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+        #save_dir = Path(increment_path(Path( self.project) /  self.name, exist_ok= self.exist_ok))  # increment run
+        #(save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
         # Initialize
         #set_logging()
-        print( self.device )
 
         if trace:
             self.model = TracedModel(self.model, self.device,  self.img_size)
@@ -212,15 +211,15 @@ class YOLOv7Detector:
                     plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
 
             # Print time (inference + NMS)
-            print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
+            #print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
-        if self.save_txt or self.save_img:
-            s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-            print(f"Results saved to {save_dir}{s}")
+        #if self.save_txt or self.save_img:
+            #s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
+            #print(f"Results saved to {save_dir}{s}")
 
-        print(f'Done. ({time.time() - t0:.3f}s)')
+        #print(f'Done. ({time.time() - t0:.3f}s)')
 
-        return im0
+        return im0, pred
 
         '''
         with torch.no_grad():

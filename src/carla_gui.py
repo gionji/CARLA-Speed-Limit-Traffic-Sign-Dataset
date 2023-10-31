@@ -43,7 +43,12 @@ class CarlaWeatherApp:
         self.checkboxes = {}
         self.randomization_thread = None
         self.randomization_running = False
-        self.output_image = None
+        self.camera_image = None
+
+        # last image captured
+        self.clean_camera_image = None
+
+        self.max_sign_distance_from_camera = 20
 
         self.camera = None
 
@@ -57,19 +62,26 @@ class CarlaWeatherApp:
         # load a yolo model
         self.yolo_detector = yolo.YOLOv7Detector(MODEL_PATH, classes=[0,1,2])
 
+        # score function
+        self.score = DetectionScorer()
+
         self.root = tk.Tk()
         self.root.title("CARLA Weather Control")
 
         # Create four frames to divide the main window
         self.frame1 = tk.Frame(self.root, bg="white", width=400, height=300)
-        self.frame2 = tk.Frame(self.root, bg="white", width=400, height=50)
+        self.frame2 = tk.Frame(self.root, bg="white", width=400, height=300)
         self.frame3 = tk.Frame(self.root, bg="white", width=400, height=300)
-        self.frame4 = tk.Frame(self.root, bg="white", width=400, height=50)
+        self.frame4 = tk.Frame(self.root, bg="white", width=400, height=300)
+        self.frame5 = tk.Frame(self.root, bg="white", width=400, height=300)
+        self.frame6 = tk.Frame(self.root, bg="white", width=400, height=300)
 
         self.frame1.grid(row=0, column=0, rowspan=2, columnspan=2)
         self.frame2.grid(row=2, column=0, rowspan=2, columnspan=2)
         self.frame3.grid(row=0, column=2, rowspan=2, columnspan=2)
         self.frame4.grid(row=2, column=2, rowspan=2, columnspan=2)
+        self.frame5.grid(row=0, column=6, rowspan=2, columnspan=2)
+        self.frame6.grid(row=2, column=6, rowspan=2, columnspan=2)
 
         self.initialize_carla()
         self.fetch_available_towns()
@@ -78,12 +90,13 @@ class CarlaWeatherApp:
         self.create_town_selector()
         self.create_sliders()
         self.create_randomization_controls()
-        self.create_spawn_button()
+        self.create_spawn_camera_button()
         self.create_output_frame()
+        self.create_detection_frame()
         self.create_prediction_frame()
         self.create_spawn_actor_frame() 
-        self.create_detection_frame()
-        
+        self.create_log_frame()
+
 
     def initialize_carla(self):
         try:
@@ -97,7 +110,6 @@ class CarlaWeatherApp:
     def fetch_available_towns(self):
         self.available_towns = [town for town in self.client.get_available_maps()]
 
-
     def fetch_spawnable_actors(self):
         # Retrieve the spawnable actors (you can customize this based on your needs)
         # Here, we are fetching vehicle blueprints for demonstration purposes
@@ -105,10 +117,12 @@ class CarlaWeatherApp:
         self.spawnable_actors = self.world.get_blueprint_library().filter( actor_filter )
 
 
+
+### GUI
     def create_town_selector(self):
         # Create a frame for town selection
         town_frame = tk.Frame(self.frame1, bg="white")
-        town_frame.pack()
+        town_frame.pack(side=tk.TOP)
 
         # Create a dropdown menu for selecting towns
         town_label = tk.Label(town_frame, text="Select Town:")
@@ -124,25 +138,36 @@ class CarlaWeatherApp:
         apply_town_button.pack(side=tk.LEFT)
 
 
-    def create_spawn_button(self):
+    def create_spawn_camera_button(self):
         # Create a frame for the spawn button
-        spawn_frame = tk.Frame(self.frame1, bg="white")
+        spawn_frame = tk.Frame(self.frame3, bg="white")
         spawn_frame.pack()
-
-        # Create a "Spawn Cars" button
-        spawn_button = tk.Button(spawn_frame, text="Spawn Cars in Front of Speed Limit Signs", command=self.spawn_car_in_front_of_speed_limit_signs)
-        spawn_button.pack()
-
+        
         spawn_camera_random_button = tk.Button(spawn_frame, text="Spawn camera random", command=self.spawn_camera)
         spawn_camera_random_button.pack()
 
         spawn_camera_satelite_button = tk.Button(spawn_frame, text="Spawn camera satelite", command=self.spawn_camera_satelite)
         spawn_camera_satelite_button.pack()
+
+        # Create a "Spawn Cars" button
+        spawn_button = tk.Button(spawn_frame, text="Spawn Camera in Front of Speed Limit Signs", command=self.spawn_car_in_front_of_speed_limit_signs)
+        spawn_button.pack()
+
+        # Create an entry field for specifying the number of objects to spawn
+        count_label = tk.Label(spawn_frame, text="Labelind max distance (m) :")
+        count_label.pack()
+        self.max_sign_distance_from_camera = tk.Entry(spawn_frame)
+        self.max_sign_distance_from_camera.insert(0, '20')
+        self.max_sign_distance_from_camera.pack()
+
+
+
+
     
 
     def create_spawn_actor_frame(self):
         # Create a frame for spawning actors
-        actor_frame = tk.Frame(self.frame1, bg="white")
+        actor_frame = tk.Frame(self.frame2, bg="white")
         actor_frame.pack()
 
         # Create a dropdown menu for selecting spawnable actors
@@ -164,23 +189,13 @@ class CarlaWeatherApp:
         spawn_button.pack()
 
 
-
     def create_output_frame(self):
         # Create a frame for the output image
         image_frame = tk.Frame(self.frame3, bg="white")
         image_frame.pack()  # Position it on the right with padding
         # Create a canvas to display the image
-        self.output_canvas = tk.Canvas(image_frame, width=640, height=480)
-        self.output_canvas.pack()
-
-    def update_output_image(self, img):
-        self.output_image = img
-        # Display the output image in the canvas
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(img)
-        img = ImageTk.PhotoImage(image=img)
-        self.output_canvas.create_image(0, 0, anchor=tk.NW, image=img)
-        self.output_canvas.image = img
+        self.camera_canvas = tk.Canvas(image_frame, width=640, height=480)
+        self.camera_canvas.pack()
 
 
     def create_prediction_frame(self):
@@ -191,7 +206,18 @@ class CarlaWeatherApp:
         self.prediction_canvas = tk.Canvas(image_frame, width=640, height=480)
         self.prediction_canvas.pack()
 
-    def update_prediction_image(self, img):
+    
+    def update_camera_canvas(self, img):
+        img = cv2.resize(img, (640, 640))
+        self.camera_image = img
+        # Display the output image in the canvas
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+        img = ImageTk.PhotoImage(image=img)
+        self.camera_canvas.create_image(0, 0, anchor=tk.NW, image=img)
+        self.camera_canvas.image = img
+
+    def update_prediction_canvas(self, img):
         self.prediction_image = img
         # Display the output image in the canvas
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -208,7 +234,10 @@ class CarlaWeatherApp:
 
         # Create horizontal sliders for weather parameters
         #weather_parameters_names = ['cloudiness', 'dust_storm', 'fog_density', 'fog_distance', 'fog_falloff', 'mie_scattering_scale', 'precipitation', 'precipitation_deposits', 'rayleigh_scattering_scale', 'scattering_intensity', 'sun_altitude_angle', 'sun_azimuth_angle', 'wetness', 'wind_intensity']
-        weather_parameters_names = ['cloudiness',  'fog_distance', 'fog_falloff', 'scattering_intensity', 'sun_altitude_angle', 'sun_azimuth_angle', 'wetness']
+        weather_parameters_names = ['cloudiness',  'fog_distance', 'fog_falloff', 
+                                    'scattering_intensity', 
+                                    'sun_altitude_angle', 'sun_azimuth_angle', 
+                                    'wetness']
 
         for param_name in weather_parameters_names:
             param_value = getattr(self.weather_parameters, param_name, None)
@@ -231,28 +260,60 @@ class CarlaWeatherApp:
         apply_button = tk.Button(sliders_frame, text="Apply Weather", command=self.apply_weather_settings)
         apply_button.pack()
 
+
     def create_randomization_controls(self):
         # Create a frame for randomization controls
-        randomization_frame = tk.Frame(self.frame1, bg="white")
+        randomization_frame = tk.Frame(self.frame2, bg="white")
         randomization_frame.pack()
-
         # Create a "Start Randomization" button
         start_button = tk.Button(randomization_frame, text="Start Randomization", command=self.start_randomization)
         start_button.grid(row=0, column=0)
-
         # Create a "Stop Randomization" button
         stop_button = tk.Button(randomization_frame, text="Stop Randomization", command=self.stop_randomization)
         stop_button.grid(row=0, column=1)
 
+        run_single_experiment_button = tk.Button(randomization_frame, text="Run single experiment", command=self.run_single_experiment)
+        run_single_experiment_button.grid(row=1, column=0)
+
+        run_full_experiment_button = tk.Button(randomization_frame, text="Run full experiment", command=self.run_full_experiment)
+        run_full_experiment_button.grid(row=1, column=1)
+
+
     def create_detection_frame(self):
         # Create a frame for the spawn button
-        detection_frame = tk.Frame(self.frame1, bg="white")
+        detection_frame = tk.Frame(self.frame4, bg="white")
         detection_frame.pack()
-
         # Create a "Spawn Cars" button
         run_yolo_button = tk.Button(detection_frame, text="Run yolo on shown frame", command=self.run_yolo)
         run_yolo_button.pack()
+
+
+    def create_log_frame(self):
+        # Create a frame for the output log area
+        output_frame = tk.Frame(self.frame6, bg="white")
+        output_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create a Text widget for the log
+        self.log = tk.Text(output_frame, height=10, width=40, state=tk.DISABLED)
+        self.log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Create a Scrollbar and associate it with the log Text widget
+        scrollbar = tk.Scrollbar(output_frame, command=self.log.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.log.config(yscrollcommand=scrollbar.set)
+
+    def append_to_log(self, text):
+        text = '\n' + str(text)
+        self.log.config(state=tk.NORMAL)
+        self.log.insert(tk.END, text)
+        self.log.config(state=tk.DISABLED)
+
+    def delete_log(self, text):
+        self.log.config(state=tk.NORMAL)
+        self.log.delete(1.0, tk.END)
+        self.log.config(state=tk.DISABLED)
         
+    ### #############################################################################################################################3
 
     def get_actor_names(self):
         # Get the names of spawnable actors
@@ -323,6 +384,7 @@ class CarlaWeatherApp:
 
         # Apply the changes to CARLA
         self.world.set_weather(self.weather_parameters)
+        self.spawn_car_in_front_of_speed_limit_signs()
 
 
     def start_randomization(self):
@@ -339,12 +401,17 @@ class CarlaWeatherApp:
     def randomize_weather(self):
         self.randomization_running = True
         while self.randomization_running:
+            self.append_to_log('New experiment ...')
             for param_name, checkbox in self.checkboxes.items():
                 if checkbox.get() == 1:
                     new_value = random.randint(0, 100)
                     self.sliders[param_name].set(new_value)
                     setattr(self.weather_parameters, param_name, new_value)
                     self.world.set_weather(self.weather_parameters)
+                    self.append_to_log( (param_name, new_value) ) 
+            
+            self.run_full_experiment()
+
             time.sleep(0.2)
 
     def build_projection_matrix(self, w, h, fov):
@@ -376,14 +443,17 @@ class CarlaWeatherApp:
 
         return point_img[0:2]
 
+
     def get_class_id_and_class_name_from_substring(self, substring):
         for key, value in CLASS_MAPPING.items():
             if substring in key:
                 return value, key
         raise ValueError(f"Substring '{substring}' not found in CLASS_MAPPING keys")
-    
-    def bbox_to_yolo_annotation(self, class_id, bbox, image_width, image_height):
-        x1, y1, x2, y2 = bbox
+
+
+
+    def bbox_to_yolo_annotation(self, class_id, bbox, image_height, image_width):
+        x1, x2, y1, y2 = bbox
         # Calculate normalized coordinates and dimensions
         bbox_width = (x2 - x1) / image_width
         bbox_height = (y2 - y1) / image_height
@@ -394,19 +464,26 @@ class CarlaWeatherApp:
         annotation = f"{class_id} {center_x} {center_y} {bbox_width} {bbox_height}"
         return annotation
 
+ 
+    def is_bbox_in_the_frame(self, bbox, frame):
+        xmin, xmax, ymin, ymax = bbox
+        height, width, channels = frame.shape
+        # Check if all coordinates of the bounding box are within the window boundaries
+        if xmin >= 0 and xmax <= width and ymin >= 0 and ymax <= height:
+            return True
+        else:
+            return False
 
-    def can_objects_face_each_other(self, ego, sign):
+
+    def is_object_face_another_object(self, ego, sign):
         digits = 1
 
         (Xa, Ya, Ra) = ego
         (Xb, Yb, Rb) = sign
 
-        tetha_a = -(Ra + 90)
-        tetha_b = -(Rb + 90)
-
-        tetha_a = -(Ra + 90)
-        tetha_b = -(Rb + 90)
-
+        tetha_a = Ra
+        tetha_b = Rb
+    
         # Calculate direction vectors
         ego_direction =  ( round(math.cos(math.radians(tetha_a)), 2), round(math.sin(math.radians(tetha_a)), 2) )
         sign_direction = ( -round(math.cos(math.radians(tetha_b)), 2), round(math.sin(math.radians(tetha_b)), 2) )
@@ -424,11 +501,6 @@ class CarlaWeatherApp:
 
         return see_each_other
 
-
-    def spawn_camera_on_waypoint(self):
-        return
-    
-    ## TODO make a view where specify the position
 
     def spawn_camera_satelite(self):
         # TODO specify altitude 
@@ -476,18 +548,20 @@ class CarlaWeatherApp:
         image = image_queue.get()
         img = np.reshape(np.copy(image.raw_data), (image.height, image.width, 4))
 
-        self.update_output_image(img)
+        self.update_camera_canvas(img)
 
         self.camera.destroy()
 
 
+    def spwan_random_object_in_front_of_the_camera(self):
+        return
+        
 
 
-    def spawn_car_in_front_of_speed_limit_signs(self, distance_in_front=10.0):
+    def spawn_car_in_front_of_speed_limit_signs(self, distance_in_front=10.0, full_experiment=False):
         # Get the CARLA world
         world = self.client.get_world()
 
-        # Step 1: Retrieve the list of traffic signs
         #traffic_signs = world.get_actors().filter('traffic.traffic_sign')
         #ts_bboxes = world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
         traffic_signs = world.get_actors().filter('traffic.speed_limit.*')
@@ -500,7 +574,7 @@ class CarlaWeatherApp:
         fov = camera_bp.get_attribute("fov").as_float()
 
         ## set the camera relative position to the sign
-        relative_camera_sign_location = carla.Location(x=-1,y=+4,z=1.9)
+        relative_camera_sign_location = carla.Location(x=-1,y=distance_in_front,z=1.9)
         camera_init_trans = carla.Transform(relative_camera_sign_location, carla.Rotation(yaw = -90))
         
         bounding_box_set_traffic_signs=world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
@@ -508,19 +582,26 @@ class CarlaWeatherApp:
         random_sign = random.choice(traffic_signs)
 
         traffic_signs_list = list()
-        traffic_signs_list.append(random_sign)
 
+        if full_experiment:
+            traffic_signs_list = traffic_signs
+        else:
+            traffic_signs_list.append(random_sign)
+
+        experiment_score = 0
+
+        ## In teoria questo cicla su tutti!
         for sign in traffic_signs_list:
             traffic_sign_max_speed = str(sign.type_id).split('.')[2]
             ## get the corresponding class_id and name
             class_id, class_name = self.get_class_id_and_class_name_from_substring(traffic_sign_max_speed)
 
             self.camera = world.spawn_actor(camera_bp, camera_init_trans, attach_to=sign)
-            print('Traffic sign max speed: ', traffic_sign_max_speed)  
+            #print('Traffic sign max speed: ', traffic_sign_max_speed, '-----------------')  
 
             image_queue = queue.Queue()
             self.camera.listen(image_queue.put)
-            transform = self.camera.get_transform()
+            camera_transform = self.camera.get_transform()
 
             # Get the world to camera matrix
             world_2_camera = np.array(self.camera.get_transform().get_inverse_matrix())
@@ -530,25 +611,28 @@ class CarlaWeatherApp:
 
             image = image_queue.get()
             img = np.reshape(np.copy(image.raw_data), (image.height, image.width, 4))
+            clean_image = img.copy()
 
+            # list containing every bbox, in a yolo aoutput format
             annotations = list()
 
-            for bb in bounding_box_set_traffic_signs:
-                # Filter for distance from ego traffic_sign_actor
-                # TODO: aggiungi controllo face to face
-                random_sign
-                ego_coord = (transform.location.x, transform.location.y, transform.rotation.yaw )
-                sign_coord = (bb.location.x, bb.location.y, bb.rotation.yaw )
-                is_facing = self.can_objects_face_each_other(ego_coord, sign_coord )
+            max_dist = int(self.max_sign_distance_from_camera.get())
 
-                if bb.location.distance(transform.location) < 50:
-                    print(is_facing, ego_coord, sign_coord)
+            for bb in bounding_box_set_traffic_signs:                
+                # Filter for distance from ego traffic_sign_actor
+                if bb.location.distance(camera_transform.location) < max_dist:                    
                     # Calculate the dot product between the forward vector
-                    # of the traffic_sign_actor and the vector between the traffic_sign_actor
-                    # and the bounding box. We threshold this dot product
-                    # to limit to drawing bounding boxes IN FRONT OF THE CAMERA
-                    forward_vec = transform.get_forward_vector()
-                    ray = bb.location - transform.location
+                    forward_vec = camera_transform.get_forward_vector()
+                    ray = bb.location - camera_transform.location
+
+                    # Control if the camara is facing the sign
+                    ego_tetha  = - (int(camera_transform.rotation.yaw) - 0)
+                    ego_coord  =   (int(camera_transform.location.x), int(camera_transform.location.y),  ego_tetha)
+
+                    sign_tetha = - (int(bb.rotation.yaw) - 0)
+                    sign_coord =   (int(bb.location.x), int(bb.location.y), sign_tetha )
+
+                    is_facing  = self.is_object_face_another_object( ego_coord, sign_coord )
 
                     if forward_vec.dot(ray) > 1:
                         # Cycle through the vertices
@@ -582,52 +666,242 @@ class CarlaWeatherApp:
                         cv2.line(img, (int(x_min),int(y_min)), (int(x_min),int(y_max)), (0,255,255, 255), 1)
                         cv2.line(img, (int(x_max),int(y_min)), (int(x_max),int(y_max)), (0,255,255, 255), 1)
 
-                        bbox_pos = (x_min, x_max, y_min, y_max)
+                        bbox_pos  = (int(x_min), int(x_max), int(y_min), int(y_max))
                         text_orig = (int(x_min), int(y_min))
 
-                        # print the max speed on the label
+                        #check if the bounding box is on screen
+                        #is_bbox_in_the_frame = self.is_bbox_in_the_frame(bbox_pos, img)
+
                         # Add the YOLO annotation text to the image
-                        cv2.putText(img, str(traffic_sign_max_speed), text_orig, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(img, str(bbox_pos), text_orig, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                         # convert the bboxes to a yolo annotation line
-                        yolo_annotation = self.bbox_to_yolo_annotation(class_id, bbox_pos, image.width, image.height)
+                        yolo_annotation = self.bbox_to_yolo_annotation(class_id, bbox_pos, img.shape[0], img.shape[1])
                         # append to a list
                         annotations.append(yolo_annotation)
 
                     # print the bboxes array
                     for i in range(0, len(annotations)):
                         cv2.putText(img, str(annotations[i]), (50, 10 + (20*i)), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 0), 1)
-                    # make a classification
 
-                    # check the results with a ground truth
+            # for every sign (in this case just one. one random picked)
 
-            self.update_output_image(img)
+            self.clean_camera_image = cv2.resize(clean_image, (640, 640))
+            self.update_camera_canvas(img)   
+                  
+            # get predictions
+            pred_img, preds = self.run_yolo()
+   
+            preds_list = [list(map(float, item.split())) for item in preds]
+            truth_list = [list(map(float, item.split())) for item in annotations]
 
+            score, scores = self.score.calculate_scores(truth_list, preds_list)
+
+            experiment_score += score
+ 
             self.camera.destroy()
+        
+        return experiment_score
+
+    
 
 
-    def compare_prediction_and_truth():
-        return
+
+    def convert_to_yolo_annotation(self, predictions, image_height, image_width):
+        yolo_annotations = []
+        for prediction in predictions[0]:
+            x1, y1, x2, y2, confidence, class_id = prediction.tolist()
+
+            # Calculating center x, center y, width, and height of the bounding box
+            bbox_width  = (x2 - x1) / image_width
+            bbox_height = (y2 - y1) / image_height
+            center_x    = (x1 + x2) / (2.0 * image_width)
+            center_y    = (y1 + y2) / (2.0 * image_height)
+
+            # Construct YOLO annotation string
+            annotation = f"{class_id} {center_x} {center_y} {bbox_width} {bbox_height}"
+            yolo_annotations.append(annotation)
+
+        return yolo_annotations
+
+
 
     def run_yolo(self, image=None):
         if image is None:
-            image = self.output_image
+            image = self.clean_camera_image
 
-        frame=image.copy()       
-        pred = self.yolo_detector.detect(frame)
-        self.update_prediction_image(pred)
+        frame=image.copy()      
+        pred_img , preds = self.yolo_detector.detect( frame )
+
+        # trasform the prediction format as the input
+        yolo_preds_annotations = self.convert_to_yolo_annotation(preds, pred_img.shape[0], pred_img.shape[1])
+
+        self.update_prediction_canvas(pred_img)
+
+        return pred_img, yolo_preds_annotations
+
+
+
+    def run_single_experiment(self):
+        score = self.spawn_car_in_front_of_speed_limit_signs(full_experiment=False)
+        self.append_to_log(('Experiment score: ', score) )
+        return
+    
+
+    def run_full_experiment(self):
+        score = self.spawn_car_in_front_of_speed_limit_signs(full_experiment=True)
+        self.append_to_log(('Experiment score: ', score) )
+        return
+
 
     def run(self):
         self.root.mainloop()
 
 
+    def initialize_app(self):
+        #load yolo
+        self.yolo_detector = yolo.YOLOv7Detector(MODEL_PATH, classes=[0,1,2])
 
-class Experiment:
-    def __init__(self, host):
-        self.host = host
+        self.spawn_car_in_front_of_speed_limit_signs()
+
+        self.update_camera_canvas(self.camera_image)
+        self.run_yolo()
+        return
+
+
+
+class DetectionScorer:
+    def __init__(self):
+        # Define scores for different cases
+        self.scores = {
+            'true_positive_detection': 2.0,
+            'false_positive_detection': -0.7,
+            'true_negative_detection': 0.5,
+            'false_negative_detection': -0.5,
+
+            'true_positive_classification': 1.0,
+            'false_positive_classification': -0.5,
+            'true_negative_classification': 0.5,
+            'false_negative_classification': -0.5,
+        }
+
+    def calculate_scores(self, truth, preds, threshold=0.7):
+        scores = {
+            'detection': {
+                'true_positive': 0,
+                'false_positive': 0,
+                'true_negative': 0,
+                'false_negative': 0
+            },
+            'classification': {
+                'true_positive': 0,
+                'false_positive': 0,
+                'true_negative': 0,
+                'false_negative': 0
+            }
+        }
+        total_score = 0  # Initialize total score
+
+        if len(truth) > len(preds):
+            truth, preds = preds, truth
+
+        for truth_box in truth:
+            best_iou = 0
+            best_match = None
+            for pred_box in preds:
+                if int(truth_box[0]) == int(pred_box[0]):
+                    iou = self.calculate_iou(truth_box, pred_box)
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_match = pred_box
+
+            if best_iou > threshold:
+                if best_match:
+                    scores['detection']['true_positive'] += self.scores['true_positive_detection']
+                    # Check for correct classification
+                    if int(truth_box[0]) == int(best_match[0]):
+                        scores['classification']['true_positive'] += self.scores['true_positive_classification']
+                    else:
+                        scores['classification']['false_positive'] += self.scores['false_positive_classification']
+                else:
+                    scores['detection']['false_negative'] += self.scores['false_negative_detection']
+
+            else:
+                if best_match:
+                    scores['detection']['false_positive'] += self.scores['false_positive_detection']
+                    scores['classification']['true_negative'] += self.scores['true_negative_classification']
+                else:
+                    scores['detection']['true_negative'] += self.scores['true_negative_detection']
+                    scores['classification']['false_negative'] += self.scores['false_negative_classification']
+
+        # Sum all the scores
+        for key, value in scores.items():
+            for sub_key, sub_value in value.items():
+                total_score += sub_value
+
+        return total_score, scores
+
+    def count_correct_detections(self, truth, preds, threshold=0.5):
+        correct_detections = 0
+
+        # To avoid out of range errors, loop through the smaller list
+        if len(truth) > len(preds):
+            truth, preds = preds, truth
+
+        for truth_box in truth:
+            best_iou = 0
+            for pred_box in preds:
+                if int(truth_box[0]) == int(pred_box[0]):
+                    iou = self.calculate_iou(truth_box, pred_box)
+                    if iou > best_iou:
+                        best_iou = iou
+
+            if best_iou > threshold:
+                correct_detections += 1
+
+        return correct_detections
+
+
+    def calculate_iou(self, box1, box2):
+        # Extract coordinates and areas
+        box1_class, box1_x, box1_y, box1_w, box1_h = box1
+        box2_class, box2_x, box2_y, box2_w, box2_h = box2
+
+        # Convert the coordinates from YOLO format to regular bounding box format
+        box1_x1, box1_x2 = box1_x - box1_w / 2, box1_x + box1_w / 2
+        box1_y1, box1_y2 = box1_y - box1_h / 2, box1_y + box1_h / 2
+        box2_x1, box2_x2 = box2_x - box2_w / 2, box2_x + box2_w / 2
+        box2_y1, box2_y2 = box2_y - box2_h / 2, box2_y + box2_h / 2
+
+        # Calculate the intersection coordinates
+        x1 = max(box1_x1, box2_x1)
+        y1 = max(box1_y1, box2_y1)
+        x2 = min(box1_x2, box2_x2)
+        y2 = min(box1_y2, box2_y2)
+
+        # Calculate the intersection area
+        intersection = max(0, x2 - x1) * max(0, y2 - y1)
+
+        # Calculate the individual areas of the bounding boxes
+        box1_area = box1_w * box1_h
+        box2_area = box2_w * box2_h
+
+        # Calculate the union area
+        union = box1_area + box2_area - intersection
+
+        # Calculate IOU
+        iou = intersection / union if union > 0 else 0
+
+        return iou
+
 
 
 
 if __name__ == '__main__':
     app = CarlaWeatherApp()
+
+    try:
+        app.initialize_app()
+    except:
+        pass
 
     app.run()
