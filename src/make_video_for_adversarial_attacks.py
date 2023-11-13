@@ -268,6 +268,29 @@ def is_bounding_box_within_frame(bbox, window_width, window_height):
         return False
 
     
+def spawn_pedestrian(self):
+    # Get the blueprint library to create pedestrians
+    blueprint_library = self.world.get_blueprint_library()
+
+    # Select the pedestrian blueprint
+    pedestrian_bp = random.choice(blueprint_library.filter("walker.pedestrian"))
+
+    # Define the pedestrian spawn point
+    spawn_points = self.world.get_map().get_spawn_points()
+    spawn_point = random.choice(spawn_points)
+
+    # Spawn a pedestrian
+    pedestrian = self.world.spawn_actor(pedestrian_bp, spawn_point)
+
+    # Set pedestrian attributes (e.g., speed, behavior, appearance)
+    # Example:
+    pedestrian.set_velocity(carla.Vector3D(x=1.0, y=0.0, z=0.0))
+    pedestrian.apply_control(carla.WalkerControl(speed=1.5))
+
+    # When done, remember to destroy the actors when finished
+    pedestrian.destroy()
+    return
+
 
 # Function to save frames to a video
 def save_frames_as_video(frames, output_path, fps=30):
@@ -293,9 +316,9 @@ def main():
     client = carla.Client('localhost', 2000)
 
     # set the map name or get it from the running carla instance
-    #world  = client.get_world()
+    world  = client.get_world()
     #world = client.load_world('Town07_more_speedsign')
-    world = client.load_world('Town01')
+    #world = client.load_world('Town01')
 
     debug= world.debug
 
@@ -365,8 +388,6 @@ def main():
     K = build_projection_matrix(image_w, image_h, fov)
 
     # Set up the set of bounding boxes from the level
-    # We filter for traffic lights and traffic signs
-    # bounding_box_set_traffic_lights = world.get_level_bbs(carla.CityObjectLabel.TrafficLight)
     bounding_box_set_traffic_signs  = world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
 
     # Remember the edge pairs
@@ -412,6 +433,9 @@ def main():
     ts_bboxes = world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
     speedlimit_actors = world.get_actors().filter('traffic.speed_limit.*')
 
+    print('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    print(speedlimit_actors)
+
     # fill the list before to order it
     for bb in ts_bboxes:
         vtx_bboxes.append( bb.get_world_vertices(carla.Transform())[0] )
@@ -449,6 +473,7 @@ def main():
 
     ## initialize the databese exporter
     #database_exporter = DatasetExporter("./database_output", image_w, image_h)
+
     #array containing the frames to save as a video
     frames = []
 
@@ -482,6 +507,7 @@ def main():
         elif key == ord('r'):
             # THide/show map when 'm' is pressed
             is_recording_on = not is_recording_on
+            print('Recording: ', is_recording_on)
         elif key == ord('y'):    
             # Save frames as a video
             video_name = 'carla_video.avi'
@@ -527,7 +553,6 @@ def main():
 
         output_bboxes = list()
 
-
         ## print the iformations on the LEFT , BOTTOM
         if show_map:
             corner_string = "Ego Position: " + str(int(ego_position.x)) + "  " + str(int(ego_position.y)) + " Heading: " + str(int(ego_yaw))
@@ -539,17 +564,20 @@ def main():
             bb = bounding_box_set_traffic_signs[i]
 
             ## get the sign class/speed limit in kmh
-            speed_limit_str = ordered_actors_vector[i].type_id.split('limit.')[1]
-            orientation_taken_by_actors_list = ordered_actors_vector[i].bounding_box.rotation.yaw 
-
+            try:
+                speed_limit_str = ordered_actors_vector[i].type_id.split('limit.')[1]
+                orientation_taken_by_actors_list = ordered_actors_vector[i].bounding_box.rotation.yaw 
+            except:
+                print()
+                continue
             bbox_by_actor = ordered_actors_vector[i].bounding_box.get_world_vertices(ordered_actors_vector[i].get_transform())[0] 
             bbox_by_actor_pos = (speed_limit_str, int(bbox_by_actor.x), int(bbox_by_actor.y), int(orientation_taken_by_actors_list))
-            distance_between_bbox_and_actor = np.sqrt((bbox_by_actor_pos[1] - bbox_by_bbs_pos[1]) ** 2 + (bbox_by_actor_pos[2] - bbox_by_bbs_pos[2]) ** 2)  
-
+            
             # append the sign class, position and orientation to the list for draw a map
             sign_orientation = int(bb.rotation.yaw)
             bbox_by_bbs_pos = (speed_limit_str, int(bb.location.x), int(bb.location.y), int(sign_orientation))
-            
+            distance_between_bbox_and_actor = np.sqrt((bbox_by_actor_pos[1] - bbox_by_bbs_pos[1]) ** 2 + (bbox_by_actor_pos[2] - bbox_by_bbs_pos[2]) ** 2)  
+
             tgt_tuple_list.append( bbox_by_bbs_pos )
 
             # Filter for distance from ego vehicle

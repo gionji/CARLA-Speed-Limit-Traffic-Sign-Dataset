@@ -1,17 +1,23 @@
-import carla_tester_model as CTmodel
-import carla_tester_view as CTview
-import carla_tester_presenter as CTpresenter
+import tkinter as tk
+
+import carla_tester.model.carla_tester_model as CTmodel
+import carla_tester.view.cameras_view as CTview
+import carla_tester.presenter.carla_tester_presenter as CTpresenter
+import carla_tester.utils as utils
+
 
 # Main application logic
 if __name__ == "__main__":
     root = tk.Tk()
-    model = CarlaWeatherModel()
-    view = CarlaWeatherView(root)
-    presenter = CarlaWeatherPresenter(model, view)
+
+    model     = CTmodel.CarlaTesterModel()
+    view      = CTview.CamerasView(root)
+    presenter = CTpresenter.CarlaTesterPresenter(model, view)
     
-    view.create_town_selector()
-    view.create_sliders()
-    view.create_randomization_controls()
+    view.set_presenter( presenter )
+
+    model.connect_to_carla()
+
+    model.run_experiment_init()
     
-    presenter.initialize()
-    view.run()
+    root.mainloop()

@@ -58,6 +58,7 @@ class CarlaWeatherApp:
 
         # Store previously spawned actors
         self.spawned_actors = []
+        self.spawned_pedestrians = []
 
         # load a yolo model
         self.yolo_detector = yolo.YOLOv7Detector(MODEL_PATH, classes=[0,1,2])
@@ -80,8 +81,8 @@ class CarlaWeatherApp:
         self.frame2.grid(row=2, column=0, rowspan=2, columnspan=2)
         self.frame3.grid(row=0, column=2, rowspan=2, columnspan=2)
         self.frame4.grid(row=2, column=2, rowspan=2, columnspan=2)
-        self.frame5.grid(row=0, column=6, rowspan=2, columnspan=2)
-        self.frame6.grid(row=2, column=6, rowspan=2, columnspan=2)
+        self.frame5.grid(row=4, column=0, rowspan=2, columnspan=6)
+        #self.frame6.grid(row=2, column=6, rowspan=2, columnspan=2)
 
         self.initialize_carla()
         self.fetch_available_towns()
@@ -89,13 +90,14 @@ class CarlaWeatherApp:
 
         self.create_town_selector()
         self.create_sliders()
-        self.create_randomization_controls()
         self.create_spawn_camera_button()
         self.create_output_frame()
         self.create_detection_frame()
         self.create_prediction_frame()
         self.create_spawn_actor_frame() 
+        self.create_pedestrians_frame()
         self.create_log_frame()
+        self.create_randomization_controls()
 
 
     def initialize_carla(self):
@@ -113,7 +115,7 @@ class CarlaWeatherApp:
     def fetch_spawnable_actors(self):
         # Retrieve the spawnable actors (you can customize this based on your needs)
         # Here, we are fetching vehicle blueprints for demonstration purposes
-        actor_filter = "*vehicle.*"
+        actor_filter = "*static.*"
         self.spawnable_actors = self.world.get_blueprint_library().filter( actor_filter )
 
 
@@ -122,7 +124,7 @@ class CarlaWeatherApp:
     def create_town_selector(self):
         # Create a frame for town selection
         town_frame = tk.Frame(self.frame1, bg="white")
-        town_frame.pack(side=tk.TOP)
+        town_frame.pack(side=tk.TOP, padx=10, pady=10)
 
         # Create a dropdown menu for selecting towns
         town_label = tk.Label(town_frame, text="Select Town:")
@@ -140,8 +142,8 @@ class CarlaWeatherApp:
 
     def create_spawn_camera_button(self):
         # Create a frame for the spawn button
-        spawn_frame = tk.Frame(self.frame3, bg="white")
-        spawn_frame.pack()
+        spawn_frame = tk.Frame(self.frame2, bg="white")
+        spawn_frame.pack(padx=10, pady=10)
         
         spawn_camera_random_button = tk.Button(spawn_frame, text="Spawn camera random", command=self.spawn_camera)
         spawn_camera_random_button.pack()
@@ -161,14 +163,10 @@ class CarlaWeatherApp:
         self.max_sign_distance_from_camera.pack()
 
 
-
-
-    
-
     def create_spawn_actor_frame(self):
         # Create a frame for spawning actors
         actor_frame = tk.Frame(self.frame2, bg="white")
-        actor_frame.pack()
+        actor_frame.pack(padx=10, pady=10)
 
         # Create a dropdown menu for selecting spawnable actors
         actor_label = tk.Label(actor_frame, text="Select Actor:")
@@ -185,14 +183,14 @@ class CarlaWeatherApp:
         self.spawn_count.pack()
 
         # Create a "Spawn" button to initiate random spawning
-        spawn_button = tk.Button(actor_frame, text="Spawn", command=self.spawn_actors)
+        spawn_button = tk.Button(actor_frame, text="Spawn Asset", command=self.spawn_actors)
         spawn_button.pack()
 
 
     def create_output_frame(self):
         # Create a frame for the output image
         image_frame = tk.Frame(self.frame3, bg="white")
-        image_frame.pack()  # Position it on the right with padding
+        image_frame.pack(padx=10, pady=10)  # Position it on the right with padding
         # Create a canvas to display the image
         self.camera_canvas = tk.Canvas(image_frame, width=640, height=480)
         self.camera_canvas.pack()
@@ -201,7 +199,7 @@ class CarlaWeatherApp:
     def create_prediction_frame(self):
         # Create a frame for the output image
         image_frame = tk.Frame(self.frame4, bg="white")
-        image_frame.pack()  # Position it on the right with padding
+        image_frame.pack(padx=10, pady=10)  # Position it on the right with padding
         # Create a canvas to display the image
         self.prediction_canvas = tk.Canvas(image_frame, width=640, height=480)
         self.prediction_canvas.pack()
@@ -210,7 +208,7 @@ class CarlaWeatherApp:
     def update_camera_canvas(self, img):
         img = cv2.resize(img, (640, 640))
         self.camera_image = img
-        # Display the output image in the canvas
+        # Display the output image in the canvasnum_pedestrians
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = ImageTk.PhotoImage(image=img)
@@ -230,7 +228,7 @@ class CarlaWeatherApp:
     def create_sliders(self):
         # Create a frame for weather sliders
         sliders_frame = tk.Frame(self.frame1, bg="white")
-        sliders_frame.pack()
+        sliders_frame.pack(padx=10, pady=10)
 
         # Create horizontal sliders for weather parameters
         #weather_parameters_names = ['cloudiness', 'dust_storm', 'fog_density', 'fog_distance', 'fog_falloff', 'mie_scattering_scale', 'precipitation', 'precipitation_deposits', 'rayleigh_scattering_scale', 'scattering_intensity', 'sun_altitude_angle', 'sun_azimuth_angle', 'wetness', 'wind_intensity']
@@ -264,7 +262,7 @@ class CarlaWeatherApp:
     def create_randomization_controls(self):
         # Create a frame for randomization controls
         randomization_frame = tk.Frame(self.frame2, bg="white")
-        randomization_frame.pack()
+        randomization_frame.pack(padx=10, pady=10)
         # Create a "Start Randomization" button
         start_button = tk.Button(randomization_frame, text="Start Randomization", command=self.start_randomization)
         start_button.grid(row=0, column=0)
@@ -282,7 +280,7 @@ class CarlaWeatherApp:
     def create_detection_frame(self):
         # Create a frame for the spawn button
         detection_frame = tk.Frame(self.frame4, bg="white")
-        detection_frame.pack()
+        detection_frame.pack(padx=10, pady=10)
         # Create a "Spawn Cars" button
         run_yolo_button = tk.Button(detection_frame, text="Run yolo on shown frame", command=self.run_yolo)
         run_yolo_button.pack()
@@ -290,11 +288,11 @@ class CarlaWeatherApp:
 
     def create_log_frame(self):
         # Create a frame for the output log area
-        output_frame = tk.Frame(self.frame6, bg="white")
-        output_frame.pack(fill=tk.BOTH, expand=True)
+        output_frame = tk.Frame(self.frame5, bg="white")
+        output_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         # Create a Text widget for the log
-        self.log = tk.Text(output_frame, height=10, width=40, state=tk.DISABLED)
+        self.log = tk.Text(output_frame, height=10, state=tk.DISABLED)
         self.log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Create a Scrollbar and associate it with the log Text widget
@@ -302,10 +300,40 @@ class CarlaWeatherApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.log.config(yscrollcommand=scrollbar.set)
 
+    def create_pedestrians_frame(self):
+        # Frame to input the number of pedestrians
+        entry_frame = tk.Frame(self.frame2)
+        entry_frame.pack()
+
+        entry_label = tk.Label(entry_frame, text="Number of Pedestrians:")
+
+        self.num_pedestrians = tk.StringVar()
+        self.num_pedestrians.set("1")
+        num_pedestrians_entry = tk.Entry(entry_frame, textvariable=self.num_pedestrians)
+
+        entry_label.pack(side=tk.LEFT)
+        num_pedestrians_entry.pack(side=tk.LEFT)
+
+        # Button to spawn pedestrians
+        self.spawn_button = tk.Button(entry_frame, text="Spawn Pedestrians", command=self.spawn_pedestrians)
+        self.spawn_button.pack()
+
+        # Button to delete pedestrians
+        self.delete_button = tk.Button(entry_frame, text="Delete Pedestrians", command=self.delete_pedestrians)
+        self.delete_button.pack()
+
+        # Button to delete pedestrians
+        self.randomize_pedestrian_velocity_button = tk.Button(entry_frame, 
+                                                              text="Randomize movement", 
+                                                              command=self.randomize_pedestrian_velocity)
+        self.randomize_pedestrian_velocity_button.pack()
+
+
     def append_to_log(self, text):
         text = '\n' + str(text)
         self.log.config(state=tk.NORMAL)
         self.log.insert(tk.END, text)
+        self.log.yview(tk.END) 
         self.log.config(state=tk.DISABLED)
 
     def delete_log(self, text):
@@ -358,14 +386,11 @@ class CarlaWeatherApp:
             print("Selected actor not found.")
 
 
-
     def get_random_spawn_location(self):
         spawn_points = self.world.get_map().get_spawn_points()
         if spawn_points:
             return random.choice(spawn_points)
         return None
-
-
 
 
     def apply_town(self, selected_town):
@@ -412,7 +437,7 @@ class CarlaWeatherApp:
             
             self.run_full_experiment()
 
-            time.sleep(0.2)
+            time.sleep(0.01)
 
     def build_projection_matrix(self, w, h, fov):
         focal = w / (2.0 * np.tan(fov * np.pi / 360.0))
@@ -442,7 +467,7 @@ class CarlaWeatherApp:
         point_img[1] /= point_img[2]
 
         return point_img[0:2]
-
+    
 
     def get_class_id_and_class_name_from_substring(self, substring):
         for key, value in CLASS_MAPPING.items():
@@ -553,6 +578,49 @@ class CarlaWeatherApp:
         self.camera.destroy()
 
 
+    def spawn_pedestrians(self):
+            # Get the blueprint library to create pedestrians
+            blueprint_library = self.world.get_blueprint_library()
+
+            # Select the pedestrian blueprint
+            pedestrian_bp = random.choice( blueprint_library.filter("*walker.pedestrian*") )
+
+            # Define the pedestrian spawn points
+            spawn_points = self.world.get_map().get_spawn_points()
+
+            # Spawn specified number of pedestrians
+            num_to_spawn = int(self.num_pedestrians.get())
+
+            print('Number of pedestrian to be spawned: ', num_to_spawn)
+
+            for i in range(num_to_spawn):
+                print('Spawning pedestrina nr. ', i)
+                spawn_point = random.choice(spawn_points)
+                pedestrian = self.world.spawn_actor(pedestrian_bp, spawn_point)
+                self.spawned_pedestrians.append(pedestrian)
+
+                # Set pedestrian attributes (e.g., speed, behavior, appearance)
+                # Example:
+                pedestrian.set_target_velocity(carla.Vector3D(x=1.0, y=0.0, z=1.0))
+                pedestrian.apply_control(carla.WalkerControl(speed=1.5))
+
+    def delete_pedestrians(self):
+        # Destroy all spawned pedestrians
+        for pedestrian in self.spawned_pedestrians:
+            pedestrian.destroy()
+        # Clear the list of spawned pedestrians
+        self.spawned_pedestrians = []
+
+
+    def randomize_pedestrian_velocity(self):
+        for pedestrian in self.spawned_pedestrians:
+            xrand = random.uniform(-1.0, 1.0)
+            yrand = random.uniform(-1.0, 1.0)
+            pedestrian.set_target_velocity(carla.Vector3D(x=xrand, y=yrand, z=0))
+        return
+
+
+
     def spwan_random_object_in_front_of_the_camera(self):
         return
         
@@ -564,7 +632,6 @@ class CarlaWeatherApp:
 
         #traffic_signs = world.get_actors().filter('traffic.traffic_sign')
         #ts_bboxes = world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
-        traffic_signs = world.get_actors().filter('traffic.speed_limit.*')
 
         # spawn and set camera attributes
         camera_bp = world.get_blueprint_library().find('sensor.camera.rgb')
@@ -576,7 +643,8 @@ class CarlaWeatherApp:
         ## set the camera relative position to the sign
         relative_camera_sign_location = carla.Location(x=-1,y=distance_in_front,z=1.9)
         camera_init_trans = carla.Transform(relative_camera_sign_location, carla.Rotation(yaw = -90))
-        
+                
+        traffic_signs = world.get_actors().filter('traffic.speed_limit.*')
         bounding_box_set_traffic_signs=world.get_level_bbs(carla.CityObjectLabel.TrafficSigns)
 
         random_sign = random.choice(traffic_signs)
@@ -673,7 +741,7 @@ class CarlaWeatherApp:
                         #is_bbox_in_the_frame = self.is_bbox_in_the_frame(bbox_pos, img)
 
                         # Add the YOLO annotation text to the image
-                        cv2.putText(img, str(bbox_pos), text_orig, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                        cv2.putText(img, str(((class_id * 30) + 30)), text_orig, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                         # convert the bboxes to a yolo annotation line
                         yolo_annotation = self.bbox_to_yolo_annotation(class_id, bbox_pos, img.shape[0], img.shape[1])
                         # append to a list
@@ -694,9 +762,12 @@ class CarlaWeatherApp:
             preds_list = [list(map(float, item.split())) for item in preds]
             truth_list = [list(map(float, item.split())) for item in annotations]
 
-            score, scores = self.score.calculate_scores(truth_list, preds_list)
+            #score, scores = self.score.calculate_confusion_matrix(truth_list, preds_list)
+            scores = self.score.calculate_confusion_matrix(truth_list, preds_list)
 
-            experiment_score += score
+            print( scores )
+
+            #experiment_score += score
  
             self.camera.destroy()
         
@@ -773,29 +844,29 @@ class DetectionScorer:
     def __init__(self):
         # Define scores for different cases
         self.scores = {
-            'true_positive_detection': 2.0,
-            'false_positive_detection': -0.7,
-            'true_negative_detection': 0.5,
-            'false_negative_detection': -0.5,
+            'true_positive_detection':   1.0,
+            'false_positive_detection':  1.0,
+            'true_negative_detection':   1.0,
+            'false_negative_detection':  1.0,
 
-            'true_positive_classification': 1.0,
-            'false_positive_classification': -0.5,
-            'true_negative_classification': 0.5,
-            'false_negative_classification': -0.5,
+            'true_positive_classification': 0.0,
+            'false_positive_classification': 0.0,
+            'true_negative_classification': 0.0,
+            'false_negative_classification': 0.0,
         }
 
     def calculate_scores(self, truth, preds, threshold=0.7):
         scores = {
             'detection': {
-                'true_positive': 0,
+                'true_positive':  0,
                 'false_positive': 0,
-                'true_negative': 0,
+                'true_negative':  0,
                 'false_negative': 0
             },
             'classification': {
-                'true_positive': 0,
+                'true_positive':  0,
                 'false_positive': 0,
-                'true_negative': 0,
+                'true_negative':  0,
                 'false_negative': 0
             }
         }
@@ -810,6 +881,7 @@ class DetectionScorer:
             for pred_box in preds:
                 if int(truth_box[0]) == int(pred_box[0]):
                     iou = self.calculate_iou(truth_box, pred_box)
+                    print('iou', iou)
                     if iou > best_iou:
                         best_iou = iou
                         best_match = pred_box
@@ -827,7 +899,7 @@ class DetectionScorer:
 
             else:
                 if best_match:
-                    scores['detection']['false_positive'] += self.scores['false_positive_detection']
+                    scores['detection']['false_positive']     += self.scores['false_positive_detection']
                     scores['classification']['true_negative'] += self.scores['true_negative_classification']
                 else:
                     scores['detection']['true_negative'] += self.scores['true_negative_detection']
@@ -839,6 +911,7 @@ class DetectionScorer:
                 total_score += sub_value
 
         return total_score, scores
+    
 
     def count_correct_detections(self, truth, preds, threshold=0.5):
         correct_detections = 0
@@ -892,6 +965,54 @@ class DetectionScorer:
         iou = intersection / union if union > 0 else 0
 
         return iou
+    
+    def calculate_confusion_matrix(self, ground_truth, predicted, threshold=0.7):
+        # Initialize confusion matrix
+        confusion_matrix = {}
+
+        for gt_box in ground_truth:
+            gt_class = gt_box[0]
+            matched = False
+
+            for pred_box in predicted:
+                pred_class = pred_box[0]
+
+                # Check if classes match
+                if pred_class == gt_class:
+                    gt_xmin, gt_xmax, gt_ymin, gt_ymax = gt_box[1:]
+                    pred_xmin, pred_xmax, pred_ymin, pred_ymax = pred_box[1:]
+
+                    # Calculate Intersection over Union (IoU)
+                    x_left = max(gt_xmin, pred_xmin)
+                    x_right = min(gt_xmax, pred_xmax)
+                    y_top = max(gt_ymin, pred_ymin)
+                    y_bottom = min(gt_ymax, pred_ymax)
+
+                    intersection_area = max(0, x_right - x_left) * max(0, y_bottom - y_top)
+                    gt_box_area = (gt_xmax - gt_xmin) * (gt_ymax - gt_ymin)
+                    pred_box_area = (pred_xmax - pred_xmin) * (pred_ymax - pred_ymin)
+                    union_area = gt_box_area + pred_box_area - intersection_area
+
+                    iou = intersection_area / union_area
+
+                    if iou > threshold:  # Threshold for considering a match
+                        matched = True
+                        if gt_class not in confusion_matrix:
+                            confusion_matrix[gt_class] = {gt_class: 1}
+                        else:
+                            if gt_class not in confusion_matrix[pred_class]:
+                                confusion_matrix[gt_class][pred_class] = 1
+                            else:
+                                confusion_matrix[gt_class][pred_class] += 1
+
+            # If no match found for ground truth box, it's a false negative
+            if not matched:
+                if gt_class not in confusion_matrix:
+                    confusion_matrix[gt_class] = {gt_class: 0}
+                else:
+                    confusion_matrix[gt_class][gt_class] = 0
+
+        return confusion_matrix
 
 
 
