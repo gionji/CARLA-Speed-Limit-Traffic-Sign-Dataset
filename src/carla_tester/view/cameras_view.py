@@ -3,11 +3,14 @@ import random
 from PIL import Image, ImageTk
 import numpy as np
 import cv2
+import signal
 
 class CamerasView(tk.Tk):
     def __init__(self, root):
         self.root = root
         self.root.geometry("1200x600")
+
+        self.is_closing = False
 
         self.left_frame = tk.Frame(self.root, bg="white")
         self.left_frame.grid(row=0, column=0, sticky="nsew")
@@ -28,13 +31,24 @@ class CamerasView(tk.Tk):
         self.bboxes_canvas = None
         self.create_canvas_widgets()
 
-        #self.protocol("WM_DELETE_WINDOW", self.on_close)
+        #self.protocol("WM_DELETE_WINDOW", self.on_close) ## recursion error at boot
+        # Register the signal handler for Ctrl+C
+        #signal.signal(signal.SIGINT, self.signal_handler)
+        
+
+    def signal_handler(self, sig, frame):
+        # Handle Ctrl+C
+        print("Ctrl+C pressed. Cleaning up...")
+        self.on_close()
 
 
     def on_close(self):
-        # Handle any cleanup operations or confirm exit
-        # This might involve closing connections, stopping processes, etc.
-        self.destroy()  # Close the application window
+        if not self.is_closing:
+            self.is_closing = True
+            # Handle any cleanup operations or confirm exit
+            # This might involve closing connections, stopping processes, etc.
+            self.presenter.on_app_close()
+            self.root.destroy()  # Close the application window
 
     def create_buttons(self):
         button_01 = tk.Button(self.left_frame, text=f"Init", command=self.on_button_01_click)

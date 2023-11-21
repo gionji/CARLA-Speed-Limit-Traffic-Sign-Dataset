@@ -261,8 +261,7 @@ def is_object_face_another_object(ego, sign,
     tetha_a = ego_rot * (Ra - ego_phase)
     tetha_b = sign_rot * (Rb - sign_phase)
 
-    print('cam angle in the method: ', int(tetha_a), int(tetha_b))
-
+    #print('cam angle in the method: ', int(tetha_a), int(tetha_b))
     #print('Cx, Cy, Cth : ', Xa, Ya, tetha_a)
     #print('Tx, Ty, Tth : ', Xb, Yb, tetha_b)
 
@@ -600,7 +599,7 @@ def find_bounding_boxes(instance_map, depth_map, classes, out_classes, diff_th=0
         # Skip background class (class ID 0)
         if class_id == 0:
             continue
-        print(f"looking for {class_name} objects (class id {class_id}")
+        #print(f"looking for {class_name} objects (class id {class_id}")
         # Find instances for the current class ID
         instances_for_class = np.unique(combined_instance_ids[instance_map[:,:,r_ch] == class_id])
 
@@ -709,8 +708,8 @@ def spawn_objects_in_volume(world, target_actor, object_blueprint, volume_size, 
         # Generate random position and rotation within the volume
         random_offset = carla.Location(
             x=random.uniform(-volume_half_size.x, volume_half_size.x),
-            y=random.uniform(-volume_half_size.y, volume_half_size.y),
-            z=random.uniform(-volume_half_size.z, volume_half_size.z)
+            y=random.uniform(-volume_half_size.y , volume_half_size.y ),
+            z=random.uniform(-volume_half_size.z + 1.9, volume_half_size.z + 1.9)
         )
 
         random_rotation = carla.Rotation(
@@ -721,10 +720,10 @@ def spawn_objects_in_volume(world, target_actor, object_blueprint, volume_size, 
 
         # Calculate the new location and rotation relative to the target object
         new_location = target_location + random_offset
-        new_rotation = target_rotation + random_rotation
+        #new_rotation = target_rotation + random_rotation
 
         # Create a transform for the new object
-        new_transform = carla.Transform(new_location, new_rotation)
+        new_transform = carla.Transform(new_location, random_rotation)
 
         # Spawn the object with the original scale
         new_object = world.spawn_actor(object_blueprint, new_transform)
@@ -732,3 +731,28 @@ def spawn_objects_in_volume(world, target_actor, object_blueprint, volume_size, 
 
     return spawned_objects
 
+
+def spawn_noises(self, targets, noise_bp_str, delete_existing_noise=True):
+    world = self.carla_simulator.world
+    # destroy any other spawnaed objects before, noise objects
+    if delete_existing_noise:
+        self.destroy_objects()
+
+    if isinstance(noise_bp_str, list):
+        obj_bp = random.choice( world.get_blueprint_library().filter( noise_bp_str ) ) 
+    else:
+        obj_bp = world.get_blueprint_library().find( noise_bp_str )
+
+    spawned_objects = list()
+
+    for tgt in targets[ACTOR]:
+        cube_size = 5
+        self.spawned_objects.append(utils.spawn_objects_in_volume(world, 
+                                                                    tgt, 
+                                                                    obj_bp, 
+                                                                    carla.Vector3D(cube_size,cube_size,cube_size), 
+                                                                    40))
+    
+    self.spawned_objects = spawned_objects
+
+    return spawned_objects

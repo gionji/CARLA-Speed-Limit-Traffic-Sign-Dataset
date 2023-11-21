@@ -18,7 +18,7 @@ class CarlaTesterPresenter:
 
 
     def on_button_next_click(self):
-        sensor_data = self.model.experiment.next()
+        sensor_data, _, _, _ = self.model.experiment.next()
         self.view.update_canvas_views( sensor_data )  
 
 
