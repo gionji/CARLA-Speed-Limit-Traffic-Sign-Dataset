@@ -220,6 +220,7 @@ def main():
     ############################## PARAMETERS ###############################
 
     try:
+        #get initial 
         m = world.get_map()
         start_pose = random.choice(m.get_spawn_points())
         waypoint = m.get_waypoint(start_pose.location)
@@ -295,7 +296,6 @@ def main():
                 bboxes = get_bboxes(image_rgb, image_semseg, image_depth)
                 save_annotations(timestamp , bboxes)
 
-
                 # Choose a random waypoint or the next waypoint and update the car location.
                 if counter % update_camera_transform_cycles == 0:
                     if set_random_camera_location:
@@ -345,7 +345,7 @@ def main():
 def save_images( timestamp, image_rgb, image_semseg, image_depth ):
     return
 
-def get_bboxes( image_rgb, image_semseg, image_depth ):
+def get_bboxes(image_rgb, image_semseg, image_depth ):
     return
 
 def save_annotations( timestamp, bboxes):
