@@ -50,7 +50,7 @@ class GeneticAlgorithm:
         """
         for iteration in range(num_iterations):
             # Evaluate the fitness of each individual in the population
-            fitness_scores = [self.evaluate_params(params, iteration) for params in self.population]
+            fitness_scores = [self.evaluate_params(dict(zip(self.params['names'], params)), iteration) for params in self.population]
 
             # Select parents based on fitness scores
             parent1, parent2 = self.select_parents(fitness_scores)

@@ -6,6 +6,7 @@ import carla_tester.presenter.carla_tester_presenter as CTpresenter
 import carla_tester.utils as utils
 
 from carla_tester.model.experiment import Experiment
+from carla_tester.model.experiment_sync import ExperimentSync
 
 import time
 
@@ -24,6 +25,6 @@ if __name__ == "__main__":
     ## Run the interface
     #root.mainloop()
 
-    experiment_genetic = Experiment()
+    experiment_genetic = ExperimentSync()
     experiment_genetic.init()
     experiment_genetic.run()

@@ -15,7 +15,7 @@ import datetime
 import secrets
 
 from carla_tester.model.carla_simulator import CarlaSimulator
-from carla_tester.model.agent import RandomStupidAgent
+from carla_tester.agent.agent import RandomStupidAgent
 from carla_tester.model.logger import ExperimentLogger
 
 

@@ -5,10 +5,20 @@ from carla_tester import utils
 
 from carla_tester.model.yolov7_detector import YOLOv7Detector
 
-from carla_tester.model.agent import RandomStupidAgent
-from carla_tester.model.agent import GeneticAlgorithm
+from carla_tester.agent.random_search import RandomStupidAgent
+from carla_tester.agent.genetic import GeneticAlgorithm
+from carla_tester.agent.bayesian import BayesianOptimization, BayesianOptimizer, BayesianOptimizer03
 
-from carla_tester.model.agent import BayesianOptimization
+from carla_tester.agent.grid_search import GridSearch, RandomGridSearch
+from carla_tester.agent.binary import BinarySearchAgent
+from carla_tester.agent.pso import PSOAgent
+
+from carla_tester.agent.simulated_annealing import SimulatedAnnealingAgent
+from carla_tester.agent.cov_mat_adpt import CMAESAgent
+
+#from carla_tester.agent.neural_network import NeuralNetworkOptimizer
+
+
 
 import numpy as np
 import time
@@ -41,6 +51,7 @@ class YoloDetector:
                                                             pred_img.shape[1])
 
         return pred_img, preds_annotations
+    
 
 
 class Experiment:
@@ -59,7 +70,9 @@ class Experiment:
         self.logger = ExperimentLogger('bayesian_01')
 
         self.carla_simulator = CarlaSimulator()
-        self.carla_simulator.set_town( 'Town01' )
+        self.carla_simulator.set_town( 'Town04' )
+
+        self.world = self.carla_simulator.get_world()
 
         self.targets = self.carla_simulator.get_detection_targets()
 
@@ -67,59 +80,65 @@ class Experiment:
         self.iou_th = 0.5
 
         self.parameters = dict()
-        self.parameters['names'] = ['cloudiness', 'precipitation', 'sun_azimuth_angle', 'sun_altitude_angle', 'wetness']
-        self.parameters['bounds'] = np.array([[0, 99], [0, 99], [0, 99], [0, 99],  [0, 99]]) 
-
-        self.agent = GeneticAlgorithm( self.evaluate_params, self.population_size, self.parameters ) # work
-        
-        '''
-        Random Search: Randomly sample parameter combinations from the search space. It's simple but can be effective.
-
-        Grid Search: Evaluate all possible combinations of parameter values. It's exhaustive but can be computationally expensive.
-
-        ##Bayesian Optimization: Build a probabilistic model of the objective function and use it to find the most promising regions in the parameter space.
-        #self.agent = BayesianOptimization( self.evaluate_params, self.parameters ) # shit
-        
-        Particle Swarm Optimization (PSO): A population-based optimization algorithm inspired by the social behavior of birds and fish.
-
-        Simulated Annealing: An optimization algorithm that mimics the annealing process in metallurgy. It starts with a high temperature (allowing more exploration) and gradually reduces it (allowing more exploitation).
-
-        Differential Evolution: A population-based stochastic optimization algorithm.
-
-        CMA-ES (Covariance Matrix Adaptation Evolution Strategy): A powerful evolutionary algorithm for real-valued optimization problems.
-
-        Neural Network-Based Approaches: Use neural networks to model the mapping between parameters and performance. Train the network and use it to guide the search.
-
-        Genetic Programming: Evolve computer programs to solve a problem, where the programs are represented as trees.
-                
-        '''
+        self.parameters['names']  = ['cloudiness', 'precipitation', 'sun_azimuth_angle', 'sun_altitude_angle', 'wetness']
+        self.parameters['bounds'] = np.array([[0, 99], [0, 99], [0, 99], [0, 99], [0, 99]]) 
 
         # Get a random seed using the secrets module
         random_seed = secrets.token_bytes(32)
         random.seed(random_seed)
 
+        ## Random Search: Randomly sample parameter combinations from the search space. It's simple but can be effective.
+        # self.agent = RandomSearch( self.evaluate_params, self.parameters ) # da migliorearwe
+
+        ## Grid Search: Evaluate all possible combinations of parameter values. It's exhaustive but can be computationally expensive.
+        #self.agent = RandomGridSearch( self.evaluate_params, self.parameters )
+        self.agent = BinarySearchAgent( self.evaluate_params, self.parameters )
+        
+        ## Bayesian Optimization: Build a probabilistic model of the objective function and use it to find the most promising regions in the parameter space.
+        #self.agent = BayesianOptimizer03( self.evaluate_params, self.parameters,  num_iterations=10 ) 
+        
+        ## Particle Swarm Optimization (PSO): A population-based optimization algorithm inspired by the social behavior of birds and fish.
+        # self.agent = PSOAgent( self.evaluate_params, self.parameters )
+
+        ## Simulated Annealing: An optimization algorithm that mimics the annealing process in metallurgy. It starts with a high temperature (allowing more exploration) and gradually reduces it (allowing more exploitation).
+        # self.agent = SimulatedAnnealingAgent( self.evaluate_params, self.parameters )
+
+        ## CMA-ES (Covariance Matrix Adaptation Evolution Strategy): A powerful evolutionary algorithm for real-valued optimization problems.
+        # self.agent = CMAESAgent( self.evaluate_params, self.parameters )
+
+        ## Genetic Programming: Evolve computer programs to solve a problem, where the programs are represented as trees.
+        #self.agent = GeneticAlgorithm( self.evaluate_params, self.population_size, self.parameters )        
+                
+        ## Differential Evolution: A population-based stochastic optimization algorithm.
+        #self.agent = DifferentialEvolutionOptimizer( self.evaluate_params, self.parameters ) ## NOOOOO
+     
+        #####---> Not working
+        ## Neural Network-Based Approaches: Use neural networks to model the mapping between parameters and performance. Train the network and use it to guide the search.
+        # self.agent = NeuralNetworkOptimizer( self.evaluate_params, self.parameters )
+
 
     def run(self):
         num_iterations = 20
-        best_params = self.agent.run(num_iterations)
+        best_params = self.agent.run( num_iterations )
         print("Best Parameters:", best_params)
         return
     
 
+    def get_carla_weather_parameters_from_dict(self, params_dict):
+        weather_parameters = carla.WeatherParameters()
+        for key, value in params_dict.items():
+            if hasattr(carla.WeatherParameters, key):
+                # Convert the value to float if it's not already
+                value = float(value)
+                setattr(weather_parameters, key, value)
+        return weather_parameters
+
 
     # Simulation method
-    def evaluate_params(self, params_np_values, iteration_n):
-
-        def get_carla_weather_parameters(keys, np_values):
-            weather_parameters = carla.WeatherParameters()
-            for pos in range(0, len( params_np_values )):
-                if hasattr(carla.WeatherParameters, keys[pos]):                   
-                    setattr(weather_parameters, keys[pos], np_values[pos])
-            return weather_parameters
-
+    def evaluate_params(self, params_dict, iteration_n):
         # Update the parameters: the weather in this case
         ## Parameters you wanna change
-        new_params = get_carla_weather_parameters(self.parameters['names'], params_np_values)
+        new_params = self.get_carla_weather_parameters_from_dict(params_dict)
         ## action
         self.carla_simulator.set_weather_settings(new_params)
 
@@ -146,7 +165,8 @@ class Experiment:
             start_time = time.time() 
 
             # Spawn the camera around the single target
-            cameras_set = self.carla_simulator.add_cameras_to_a_single_target( target[ACTOR] )
+            cameras_set = self.carla_simulator.add_cameras_to_a_single_target( self.world, target[ACTOR] )
+            ## cameras_set is a dict containing cameras and queues keys and respectively two dicts with the camera key name 
 
             # get the metrics back
             _, single_target_metrics, yolo_truth, yolo_preds, camera_transform = self.process_single_frame(target, cameras_set, self.iou_th)
@@ -173,8 +193,10 @@ class Experiment:
             # Stop timer to measure the iteration execution time
             end_time = time.time()
             iteration_time = end_time - start_time
-            total_time += iteration_time
 
+            time_per_target = iteration_time / len( self.targets )
+
+            total_time += iteration_time
 
         iteration_metrics = {
             "average_precision" : np.mean(np.array(precision_values)),
@@ -184,9 +206,9 @@ class Experiment:
         # save the scores in to the loge file
         self.logger.end_iteration( iteration_metrics )
 
-        print( "Iteration", iteration_n ,'/ XXX' , 'terminated in', total_time )
-
         score = iteration_metrics[ "average_precision" ]
+
+        print( "Iteration", iteration_n, 'score:', score, 'terminated in', total_time, 'time_per_target', time_per_target)
 
         return score
 
@@ -196,10 +218,16 @@ class Experiment:
         #camera_relative_transform = utils.get_camera_spherical_relative_transform(8, 0, 0)
 
         ## get images from the spawned sensors
-        camera_output_images = self.carla_simulator.get_images( cameras_set )
+        camera_output_images, K, world_2_camera = self.carla_simulator.get_images( cameras_set )
 
-        ## generate the image with the bounding boxes
-        bboxes_image, yolo_truth = self.carla_simulator.get_truth(cameras_set, camera_output_images['rgb']['image'])
+        ## generate the image with the bounding boxes --- (camera_transform, image, targets, K, world_2_camera
+        camera_transform = cameras_set['cameras']['rgb'].get_transform()
+        bboxes_image, yolo_truth = self.carla_simulator.get_truth(camera_transform, 
+                                                                  camera_output_images['rgb']['image'],
+                                                                  self.targets,
+                                                                  K,
+                                                                  world_2_camera)
+
         ## add the rgb image with bboxes in the sensorsdata dict
         camera_output_images['bboxes'] = {}
         camera_output_images['bboxes']['image'] = bboxes_image 
@@ -216,5 +244,3 @@ class Experiment:
         metrics = utils.calculate_metrics_detection_classification(yolo_truth, yolo_preds, iou_th)
 
         return camera_output_images, metrics, yolo_truth, yolo_preds, camera_transform
-
-

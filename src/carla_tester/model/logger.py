@@ -9,6 +9,8 @@ class ExperimentLogger:
         self.log_data = {'experiment_name': experiment_name, 'iterations': []}
         self.current_iteration = None
 
+    def get_complete_experiment_name(self):
+        return self.filename.split('.')[0]
 
     def start_iteration(self, iteration_number, iteration_info):
         # Customize the iteration information here

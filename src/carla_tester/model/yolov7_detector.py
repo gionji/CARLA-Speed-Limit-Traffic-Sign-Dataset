@@ -133,11 +133,12 @@ class YOLOv7Detector:
         
         # Reshape the raw data into an RGB array
         #im0 = numpy.reshape(numpy.copy(image.raw_data), (image.height, image.width, 4)) 
+        
         image = cv2.resize(image, (self.img_size, self.img_size))
         image_h = image.shape[0]
         image_w = image.shape[1]
 
-        im0 = numpy.reshape( numpy.copy(image), (image_h, image_w, 4) ) 
+        im0 = numpy.reshape( numpy.copy(image), (image_h, image_w, image.shape[2]) ) 
         im0 = im0[:, :, :3]
         
         # Padded resize

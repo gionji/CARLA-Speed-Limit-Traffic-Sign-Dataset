@@ -10,51 +10,51 @@ import cv2
 BBOX = 1
 ACTOR = 0
 
+
 class CarlaSimulator:
     def __init__(self, host="localhost", port=2000):
         self.host = host
         self.port = port
 
-        self.client = None
         self.world  = None
-
         self.current_weather_parameters = None
         self.current_town = None
 
-        self.camera_sets = []
+        # {'actor' : actor_where_to_attach_cameras, 'cameras' : cameras, 'queues' : queues}
+        # For each actor i have the correspondant cameras(anothed dict) and queues(dict)
+        # Initialized by: 
+
+        self.spawned_cameras = []
 
         try:
             self.connect_to_carla()
         except Exception as e:
             print(f"TimeoutException during initialization: {str(e)}")
-            print("Handling the exception...")
 
 
     def connect_to_carla(self):
-        try:
-            self.client = carla.Client(self.host, self.port)
-            self.client.set_timeout(5.0)
+        self.client = carla.Client(self.host, self.port)
+        self.client.set_timeout(10.0)
+        self.world = self.client.get_world()
+        print('CarlaSimulator->self.world', self.world)
 
-            self.world = self.client.get_world()
-
+        if self.world is not None:
             self.current_weather_parameters = self.world.get_weather()
-            self.current_town = self.world.get_map().name
-        except Exception as e:
-            print('T ho beccato maiala!!!!', e)
-
+            self.current_town = self.world.get_map().name        
+            print("Connected to CARLA.")
 
 
     def destroy_all_cameras(self):
         try:
-            for camera_set in self.camera_sets:
-                for camera in camera_set['cameras'].values():
-                        camera.destroy()
-
-            self.camera_sets = []
+            for camera in self.spawned_cameras:
+                camera.destroy()
+            self.spawned_cameras = []
         except Exception as e:
             raise e
-
-
+        
+        
+    def get_world(self):
+        return self.world 
 
     def fetch_available_towns(self):
         self.available_towns = [town for town in self.client.get_available_maps()]
@@ -68,7 +68,6 @@ class CarlaSimulator:
         # Retrieve the spawnable actors (you can customize this based on your needs)
         filter = "*vehicles.*"
         self.spawnable_vehicles = self.world.get_blueprint_library().filter( filter )
-
 
 
     def set_town(self, selected_town):
@@ -89,8 +88,41 @@ class CarlaSimulator:
         self.world.set_weather(weather_parameters)
 
 
-    def add_cameras_to_a_single_target(self, actor_where_to_attach_cameras, camera_relative_transform=None, existing_camera_set=None):
-        world = self.world
+    def get_detection_targets(self, actors_filter_string=None, bbox_carla_object=None): #to do general
+        # get actors
+        traffic_signs_actors = self.world.get_actors().filter('traffic.speed_limit.*') # use actor_filter string
+        # get bboxes
+        traffic_signs_bboxes = self.world.get_level_bbs(carla.CityObjectLabel.TrafficSigns) # use bbox carla object
+
+        print('traffic_signs_actors', traffic_signs_actors)
+
+        for actor in traffic_signs_actors:
+            ##dovrebbe essere la posizione del cartello
+            actor_transform = actor.get_transform()
+            actor_location = actor_transform.location
+            actor_rotation = actor_transform.rotation
+            actor_type = actor.type_id
+            speed_limit = actor.type_id.split('limit.')[1]
+
+        for bbox in traffic_signs_bboxes:
+            bbox_location = bbox.location
+            bbox_rotation = bbox.rotation
+            bbox_extent = bbox.extent
+
+        speedlimits_signs = utils.get_speed_limit_signs( traffic_signs_actors, traffic_signs_bboxes )
+        
+        self.targets = speedlimits_signs
+
+        return speedlimits_signs
+    
+
+
+    def add_cameras_to_a_single_target(self, 
+                                       world, 
+                                       actor_where_to_attach_cameras, 
+                                       camera_relative_transform=None, 
+                                       existing_camera_set=None):
+        
         # if i didn't pass the relative position i use a default
         if camera_relative_transform == None:
             relative_obj_cam_transform = carla.Transform( carla.Location(x=-1,y=6,z=1.9), 
@@ -118,17 +150,17 @@ class CarlaSimulator:
         for camera_type, camera_bp in camera_bps.items():
             camera = world.spawn_actor(camera_bp, camera_transforms[camera_type], attach_to=actor_where_to_attach_cameras)
             cameras[camera_type] = camera
+            self.spawned_cameras.append( camera )
             # Create a queue for each camera
             queues[camera_type] = queue.Queue()
             # Listen to the camera and put images in the respective queue
             camera.listen( queues[camera_type].put ) 
 
         camera_set = {'actor' : actor_where_to_attach_cameras, 'cameras' : cameras, 'queues' : queues}
-        
-        self.camera_sets.append( camera_set )
 
         return camera_set
         
+
         
     def get_images(self, cameras_set):
         images = {}
@@ -137,7 +169,6 @@ class CarlaSimulator:
         queues = cameras_set['queues']
 
         for image_type, camera in cameras.items():
-
             # Use the corresponding queue for the current camera type
             image_queue = queues[image_type]
 
@@ -148,9 +179,9 @@ class CarlaSimulator:
             fov = float(camera.attributes['fov'])
 
             # Calculate the camera projection matrix to project from 3D -> 2D
-            self.K = utils.build_projection_matrix(width, height, fov)
+            K = utils.build_projection_matrix(width, height, fov)
             # Get the world to camera matrix
-            self.world_2_camera = np.array(sensor_transform.get_inverse_matrix())
+            world_2_camera = np.array(sensor_transform.get_inverse_matrix())
 
             # Get image from the queue
             image = image_queue.get()
@@ -158,53 +189,21 @@ class CarlaSimulator:
 
             images[image_type] = {'image': img }
 
-        return images
+        return images, K, world_2_camera
 
 
-    def get_detection_targets(self, actors_filter_string=None, bbox_carla_object=None): #to do general
-        # get actors
-        traffic_signs_actors = self.world.get_actors().filter('traffic.speed_limit.*') # use actor_filter string
-        # get bboxes
-        traffic_signs_bboxes=self.world.get_level_bbs(carla.CityObjectLabel.TrafficSigns) # use bbox carla object
-
-        for actor in traffic_signs_actors:
-            ##dovrebbe essere la posizione del cartello
-            actor_transform = actor.get_transform()
-            actor_location = actor_transform.location
-            actor_rotation = actor_transform.rotation
-            actor_type = actor.type_id
-            speed_limit = actor.type_id.split('limit.')[1]
-
-            cube_size = 5
-
-        for bbox in traffic_signs_bboxes:
-            bbox_location = bbox.location
-            bbox_rotation = bbox.rotation
-            bbox_extent = bbox.extent
-
-        speedlimits_signs = utils.get_speed_limit_signs(traffic_signs_actors,
-                                                        traffic_signs_bboxes)
-        
-        self.targets = speedlimits_signs
-
-        return speedlimits_signs
-    
-
-    def get_truth(self, cameras_set, image):
+    def get_truth(self, camera_transform, image, targets, K, world_2_camera):
         #print('DBG -----> ', 'get_bboxes(self, target, cameras_set, image)')
         img = image.copy()
         image_h = image.shape[0]
         image_w = image.shape[1]
 
-        cameras = cameras_set['cameras']
-
         selected_bboxes = list()
 
-        for tgt in self.targets:
+        for tgt in targets:
             bbox = tgt[BBOX]
             class_id = utils.get_speed_limit( tgt[ACTOR] )
-            distance_from_target = bbox.location.distance( cameras['rgb'].get_transform().location )
-            camera_transform = cameras['rgb'].get_transform()
+            distance_from_target = bbox.location.distance( camera_transform.location )
             actor_transform = tgt[ACTOR].get_transform()
 
             if distance_from_target < 40:
@@ -234,7 +233,7 @@ class CarlaSimulator:
                     y_min = 10000
 
                     for vert in verts:
-                        p = utils.get_image_point(vert, self.K, self.world_2_camera)
+                        p = utils.get_image_point(vert, K, world_2_camera)
                         # Find the rightmost vertex
                         if p[0] > x_max:
                             x_max = p[0]
