@@ -63,6 +63,7 @@ class CarlaSimulator:
         # Retrieve the spawnable actors (you can customize this based on your needs)
         filter = "*static.*"
         self.spawnable_statics = self.world.get_blueprint_library().filter( filter )
+        return self.spawnable_statics
 
     def fetch_spawnable_vehicles(self):
         # Retrieve the spawnable actors (you can customize this based on your needs)

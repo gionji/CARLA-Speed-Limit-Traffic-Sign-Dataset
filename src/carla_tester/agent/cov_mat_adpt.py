@@ -9,9 +9,8 @@ class CMAESAgent:
         self.population_size = population_size
         self.sigma_init = sigma_init
         self.iterations = iterations
-        self.current
 
-    def run(self, n_iter_unused):
+    def run(self):
         def objective_function(x):
             params_dict = dict(zip(self.param_names, x))
             return -self.evaluate_params(params_dict, iteration_n=0)

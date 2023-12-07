@@ -72,11 +72,12 @@ class RandomGridSearch:
 
 
 class RandomSearch:
-    def __init__(self, evaluate_params, params, num_samples=10, bins=4):
+    def __init__(self, evaluate_params, params, num_samples=10, bins=4, num_iterations=10):
         self.evaluate_params = evaluate_params
         self.params = params
         self.num_samples = num_samples
         self.bins = bins
+        self.num_iterations = num_iterations
         self.param_combinations = self.generate_param_combinations()
 
     def generate_param_combinations(self):
@@ -87,21 +88,23 @@ class RandomSearch:
     def generate_random_params(self, param_ranges):
         return [np.random.choice(bins) for bins in param_ranges]
 
-    def run(self, unused):
+    def run(self):
         best_score = None
         best_params = None
 
-        for params_values in self.param_combinations:
-            current_params = dict(zip(self.params['names'], params_values))
+        for iteration in range(self.num_iterations):
+            for params_values in self.param_combinations:
+                current_params = dict(zip(self.params['names'], params_values))
 
-            print('Current params: ', current_params)
+                print(f'Iteration {iteration + 1}, Current params: {current_params}')
 
-            score = self.evaluate_params(current_params, iteration_n=0)  # Assuming iteration_n is not used in the evaluation
+                score = self.evaluate_params(current_params, iteration_n=iteration)
 
-            if best_score is None or score < best_score:
-                best_score = score
-                best_params = current_params
+                if best_score is None or score < best_score:
+                    best_score = score
+                    best_params = current_params
 
         print(f"Best Parameters: {best_params}, Best Score: {best_score}")
 
         return best_params
+

@@ -4,8 +4,8 @@ import datetime
 class ExperimentLogger:
     def __init__(self, experiment_name):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.experiment_name = experiment_name  
         self.filename = f"{experiment_name}_{timestamp}.json"
-        self.experiment_name = experiment_name
         self.log_data = {'experiment_name': experiment_name, 'iterations': []}
         self.current_iteration = None
 

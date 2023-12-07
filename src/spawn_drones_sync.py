@@ -110,7 +110,7 @@ def spawn_objects(client, num_objects, altitude_range, objects_names):
 
     for _ in range(num_objects):
         try:
-            blueprint = random.choice(blueprint_library.filter('*plant*'))
+            blueprint = random.choice(blueprint_library.filter('*blender_speedlimit*'))
             altitude = random.uniform(*altitude_range)
             
             spawn_point = carla.Transform()
@@ -196,9 +196,9 @@ def main():
 
     ############################## PARAMETERS ###############################
     # TODO
-    objects_names = ['static.prop.plantpot01',
-                     'static.prop.plantpot02',
-                     'static.prop.plantpot03' ]
+    objects_names = ['static.prop.blender_speedlimit_30_white',
+                     'static.prop.blender_speedlimit_60_white',
+                     'static.prop.blender_speedlimit_90_white' ]
 
     flying_objects_num = 500
     altitude_range=(20, 30)

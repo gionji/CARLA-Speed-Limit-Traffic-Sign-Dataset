@@ -9,12 +9,14 @@ from carla_tester.agent.random_search import RandomStupidAgent
 from carla_tester.agent.genetic import GeneticAlgorithm
 from carla_tester.agent.bayesian import BayesianOptimization, BayesianOptimizer, BayesianOptimizer03
 
-from carla_tester.agent.grid_search import GridSearch, RandomGridSearch
+from carla_tester.agent.grid_search import GridSearch, RandomGridSearch, RandomSearch
 from carla_tester.agent.binary import BinarySearchAgent
 from carla_tester.agent.pso import PSOAgent
 
 from carla_tester.agent.simulated_annealing import SimulatedAnnealingAgent
 from carla_tester.agent.cov_mat_adpt import CMAESAgent
+
+from carla_tester.model.dataset_saver import DatasetSaver
 
 import math
 
@@ -32,8 +34,22 @@ import carla
 
 import pygame
 
+import signal
+import sys
+
 BBOX = 1
 ACTOR = 0
+
+# Define a signal handler function
+def signal_handler(sig, frame):
+    print("Ctrl+C detected. Cleaning up and exiting.")
+    pygame.quit()
+    sys.exit(0)
+
+# Register the signal handler
+signal.signal(signal.SIGINT, signal_handler)
+
+
 
 class YoloDetector:
     def __init__(self):
@@ -58,6 +74,7 @@ class YoloDetector:
     
 
 
+
 class ExperimentSync:
     def __init__(self) -> None:
         self.agent = None
@@ -65,6 +82,7 @@ class ExperimentSync:
         self.simulator = None
         self.ml_model = None
         self.logger = None
+        self.data_saver = None
 
         self.pred_count = 0
         
@@ -73,11 +91,13 @@ class ExperimentSync:
         self.ml_model = YoloDetector()
         self.ml_model.load_model( '/home/gionji/yolov7/runs/train/carla_gio_072/weights/best.pt' )
 
-        town = 'Town04'
-        experiment_label = 'bayesian_01'
+        town = 'Town10HD_Opt'
+        experiment_label = 'CMAESAgent'
         experiment_name = experiment_label +'-'+ town
 
         self.logger = ExperimentLogger( experiment_name ) 
+
+        self.data_saver = DatasetSaver( self.logger.get_complete_experiment_name(), './' )
 
         self.carla_simulator = CarlaSimulator()
         self.carla_simulator.set_town( town )
@@ -93,12 +113,22 @@ class ExperimentSync:
         self.height = 480
         self.fov = 110
 
-        self.parameters = dict()
-        self.parameters['names']  = ['cloudiness', 'precipitation', 'sun_azimuth_angle', 'sun_altitude_angle', 'fog_density']
-        self.parameters['bounds'] = np.array([[0, 99], [0, 99], [0, 99], [0, 99], [0, 99]]) 
+        self.save_dataset = False
 
-        self.camera_vehicle_relative_transform = carla.Transform(carla.Location(x=1.0, y=0.0, z=1.5), carla.Rotation(pitch=0, yaw=0, roll=0))
-        self.target_vehicle_relative_transform = carla.Transform(carla.Location(x=-0.0, y=6.0, z=0.0), carla.Rotation(pitch=0, yaw=-90, roll=0))
+        self.parameters = dict()
+        
+        self.parameters['names']  = ['cloudiness', 'precipitation', 'precipitation_deposits', 'wind_intensity', 'sun_azimuth_angle', 
+                                     'sun_altitude_angle', 'fog_density', 'wetness', 
+                                     'scattering_intensity', 'dust_storm']
+        
+        self.parameters['bounds'] = np.array([[0, 99], [0, 99], [0, 99], [0, 99], [0, 99],
+                                              [0, 99], [0, 99], [0, 99],
+                                              [0, 99], [0, 99]]) 
+
+        self.camera_vehicle_relative_transform = carla.Transform(carla.Location(x=0.45, y=0, z=0), carla.Rotation(pitch=0, yaw=0, roll=0))  
+
+        # X positive go right, Y positive go far
+        self.target_vehicle_relative_transform = carla.Transform(carla.Location(x=0.0, y=6.45, z=1.5), carla.Rotation(pitch=0, yaw=-90, roll=0))
 
         # set up the cameras on the vehicle ##################################################################3
 
@@ -116,8 +146,11 @@ class ExperimentSync:
         start_pose = random.choice(m.get_spawn_points())
         waypoint = m.get_waypoint(start_pose.location)
 
+        static_object_list = self.world.get_blueprint_library().filter( "*static.*" )
+        print(static_object_list)
+
         self.vehicle = self.world.spawn_actor(
-            random.choice(blueprint_library.filter('vehicle.seat*')),
+            random.choice(blueprint_library.filter('static.prop.brokentile02*')),
             start_pose)
         self.actor_list.append(self.vehicle)
 
@@ -163,26 +196,26 @@ class ExperimentSync:
         random.seed(random_seed)
 
         ##Random Search: Randomly sample parameter combinations from the search space. It's simple but can be effective.
-        #self.agent = RandomSearch( self.evaluate_params, self.parameters ) # da migliorearwe
+        self.agent = RandomSearch( self.evaluate_params, self.parameters ) # da migliorearwe
 
         ##Grid Search: Evaluate all possible combinations of parameter values. It's exhaustive but can be computationally expensive.
-        #self.agent = RandomGridSearch( self.evaluate_params, self.parameters )
+        #self.agent = RandomGridSearch( self.evaluate_params, self.parameters, num_iterations=100 )
         # self.agent = BinarySearchAgent( self.evaluate_params, self.parameters )
         
         ##Bayesian Optimization: Build a probabilistic model of the objective function and use it to find the most promising regions in the parameter space.
-        # self.agent = BayesianOptimizer03( self.evaluate_params, self.parameters,  num_iterations=1000) 
+        #self.agent = BayesianOptimizer03( self.evaluate_params, self.parameters,  num_iterations=1000) 
         
         ##Particle Swarm Optimization (PSO): A population-based optimization algorithm inspired by the social behavior of birds and fish.
         # self.agent = PSOAgent( self.evaluate_params, self.parameters )
 
         ##Simulated Annealing: An optimization algorithm that mimics the annealing process in metallurgy. It starts with a high temperature (allowing more exploration) and gradually reduces it (allowing more exploitation).
-        # self.agent = SimulatedAnnealingAgent( self.evaluate_params, self.parameters )
+        #self.agent = SimulatedAnnealingAgent( self.evaluate_params, self.parameters )
 
         ##CMA-ES (Covariance Matrix Adaptation Evolution Strategy): A powerful evolutionary algorithm for real-valued optimization problems.
-        # self.agent = CMAESAgent( self.evaluate_params, self.parameters )
+        self.agent = CMAESAgent( self.evaluate_params, self.parameters )
 
         ##Genetic Programming: Evolve computer programs to solve a problem, where the programs are represented as trees.
-        self.agent = GeneticAlgorithm( self.evaluate_params, self.population_size, self.parameters )        
+        #self.agent = GeneticAlgorithm( self.evaluate_params, self.population_size, self.parameters )        
                 
         ##Differential Evolution: A population-based stochastic optimization algorithm.
         #self.agent = DifferentialEvolutionOptimizer( self.evaluate_params, self.parameters ) ## NOOOOO
@@ -193,41 +226,43 @@ class ExperimentSync:
 
 
     def run(self):
+        try:
+            self.sync_mode = CarlaSyncMode(self.world, self.camera_rgb, self.camera_instseg, self.camera_depth, fps=1)
+            self.sync_mode.__enter__()
 
-        self.sync_mode = CarlaSyncMode(self.world, self.camera_rgb, self.camera_instseg, self.camera_depth, fps=1)
-        self.sync_mode.__enter__()
+            best_params = self.agent.run( )
 
-        num_iterations = 200
-        best_params = self.agent.run( num_iterations )
+            print("Best Parameters:", best_params)
 
-        self.sync_mode.__exit__()
+        finally:
+            self.sync_mode.__exit__()
+            print('destroying actors.')
 
-        print("Best Parameters:", best_params)
+            for actor in self.actor_list:
+                actor.destroy()
 
-        print('destroying actors.')
-        for actor in self.actor_list:
-            actor.destroy()
+            pygame.quit()
+            print('done.')
 
-        pygame.quit()
-        print('done.')
-        
         return
     
         
     def get_carla_weather_parameters_from_dict(self, params_dict):
         weather_parameters = carla.WeatherParameters()
+
         for key, value in params_dict.items():
             if hasattr(carla.WeatherParameters, key):
                 # Convert the value to float if it's not already
                 value = float(value)
                 setattr(weather_parameters, key, value)
+
         return weather_parameters
 
     # Simulation method
     def evaluate_params(self, params_dict, iteration_n):
-        # Update the parameters: the weather in this case
         ## Parameters you wanna change
         new_params = self.get_carla_weather_parameters_from_dict(params_dict)
+
         ## action
         self.carla_simulator.set_weather_settings(new_params)
 
@@ -283,12 +318,6 @@ class ExperimentSync:
                 # Advance the simulation and wait for the data.
                 snapshot, image_rgb, image_semseg, image_depth = self.sync_mode.tick(timeout=2.0)
 
-                #  TODO calculate bboxes and save the images and annotations
-                #save_images(timestamp, image_rgb, image_semseg, image_depth)
-
-                #bboxes = get_bboxes(image_rgb, image_semseg, image_depth)
-                #save_annotations(timestamp , bboxes)
-
                 target_count += 1
                 start_time = time.time() 
 
@@ -302,8 +331,14 @@ class ExperimentSync:
                                                                                                                 transform_result, 
                                                                                                                 iou_th=0.5)
 
+
+                
+                if self.save_dataset:
+                    self.data_saver.save_frame(timestamp, image_rgb, image_semseg, image_depth, yolo_truth)
+
                 # after processing the frame
                 frame_info = {
+                    "timestamp" : timestamp,
                     "tgt"     : target_count,
                     "bb_truth": yolo_truth,  
                     "bb_pred" : yolo_preds, 
@@ -322,8 +357,8 @@ class ExperimentSync:
                 fps = round(1.0 / snapshot.timestamp.delta_seconds)
 
                 # Draw the display.
-                draw_image(self.display, preds_image)
-                #draw_image(self.display, image_semseg, blend=True)
+                draw_image(self.display, truth_image)
+                draw_image(self.display, preds_image, blend=True)
                 #draw_image(display, image_depth, blend=True)
 
                 # Stop timer to measure the iteration execution time
@@ -331,31 +366,29 @@ class ExperimentSync:
                 iteration_time = end_time - start_time
                 total_time += iteration_time
 
-                self.display.blit(
-                    self.font.render('% 5d FPS (real)' % self.clock.get_fps(), True, (255, 255, 255)),
-                    (8, 10))
-                self.display.blit(
-                    self.font.render('% 5d FPS (simulated)' % fps, True, (255, 255, 255)),
-                    (8, 28))
                 pygame.display.flip()
             # qui finisco tutti i target
-        finally:
-            print('iteration done')
-
+        finally:  
             iteration_metrics = {
                 "average_precision" : np.mean(np.array(precision_values)),
                 "average_recall"    : np.mean(np.array(recall_values)) 
             }
 
-
-            print(iteration_metrics)
+            print('iteration done', iteration_metrics)
 
              # save the scores in to the loge file
             self.logger.end_iteration( iteration_metrics )
 
             score = iteration_metrics[ "average_precision" ]
 
-            print( "Iteration", iteration_n, 'score:', score, 'for parameters: ', params_dict , 'terminated in', total_time)      
+            print( "Iteration", iteration_n, 'score:', score, 'terminated in', total_time) 
+
+            self.display.blit(
+                self.font.render('Prev. iter score % 5d ' % score, 
+                                 True, 
+                                 (255, 255, 255)),
+                                 (8, 10))
+            pygame.display.flip()     
 
             return score
     
@@ -468,13 +501,15 @@ class CarlaSyncMode(object):
                 return data
 
 
+
 def save_images( timestamp, image_rgb, image_semseg, image_depth ):
+
     return
 
-def get_bboxes(image_rgb, image_semseg, image_depth ):
-    return
+
 
 def save_annotations( timestamp, bboxes):
+
     return
 
 def should_quit():

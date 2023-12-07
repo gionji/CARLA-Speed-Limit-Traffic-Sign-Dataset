@@ -1,13 +1,14 @@
 import numpy as np
 
 class SimulatedAnnealingAgent:
-    def __init__(self, evaluate_params, params, initial_temperature=100.0, cooling_rate=0.95, iterations_per_temperature=10):
+    def __init__(self, evaluate_params, params, initial_temperature=100.0, cooling_rate=0.95, iterations_per_temperature=10, max_iterations=50):
         self.evaluate_params = evaluate_params
         self.param_names = params['names']
         self.param_bounds = params['bounds']
         self.temperature = initial_temperature
         self.cooling_rate = cooling_rate
         self.iterations_per_temperature = iterations_per_temperature
+        self.max_iterations = max_iterations
 
     def generate_neighbor(self, current_params):
         # Generate a random neighbor within the parameter bounds
@@ -22,28 +23,29 @@ class SimulatedAnnealingAgent:
             return 1.0
         return np.exp((current_score - neighbor_score) / self.temperature)
 
-    def run(self, n_iterations_unused):
+    def run(self, n_max_iter):
         current_params = np.random.uniform(low=self.param_bounds[:, 0], high=self.param_bounds[:, 1])
         current_score = self.evaluate_params(dict(zip(self.param_names, current_params)), iteration_n=0)
 
         best_params = current_params
         best_score = current_score
 
-        for iteration in range(1, self.iterations_per_temperature + 1):
-            neighbor_params = self.generate_neighbor(current_params)
-            neighbor_score = self.evaluate_params(dict(zip(self.param_names, neighbor_params)), iteration_n=iteration)
+        for temperature_iteration in range(1, self.max_iterations + 1):
+            for iteration in range(1, self.iterations_per_temperature + 1):
+                neighbor_params = self.generate_neighbor(current_params)
+                neighbor_score = self.evaluate_params(dict(zip(self.param_names, neighbor_params)), iteration_n=iteration)
 
-            probability = self.acceptance_probability(current_score, neighbor_score)
-            if np.random.rand() < probability:
-                current_params = neighbor_params
-                current_score = neighbor_score
+                probability = self.acceptance_probability(current_score, neighbor_score)
+                if np.random.rand() < probability:
+                    current_params = neighbor_params
+                    current_score = neighbor_score
 
-            if current_score < best_score:
-                best_params = current_params
-                best_score = current_score
+                if current_score < best_score:
+                    best_params = current_params
+                    best_score = current_score
 
-            print(f"Iteration: {iteration}, Temperature: {self.temperature}, Score: {current_score}, Best Score: {best_score}")
+                print(f"Temperature Iteration: {temperature_iteration}, Iteration: {iteration}, Temperature: {self.temperature}, Score: {current_score}, Best Score: {best_score}")
 
-        self.temperature *= self.cooling_rate
+            self.temperature *= self.cooling_rate
 
         return best_params

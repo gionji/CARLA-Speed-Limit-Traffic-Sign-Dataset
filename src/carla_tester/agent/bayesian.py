@@ -162,7 +162,8 @@ class BayesianOptimizer03:
             x_next = self.optimize_acquisition(gp)
             
             # Convert the array to a dictionary with parameter names
-            x_next_dict = {'names': self.params['names'], 'values': x_next.tolist()}
+            #x_next_dict = {'names': self.params['names'], 'values': x_next.tolist()}
+            x_next_dict = dict(zip(self.params['names'], x_next.tolist()))
             
             # Evaluate the true objective function at the new point
             y_next = self.objective_function(x_next_dict, i)

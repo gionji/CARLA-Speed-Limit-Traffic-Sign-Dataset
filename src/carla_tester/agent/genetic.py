@@ -20,11 +20,11 @@ class GeneticAlgorithm:
 
     def select_parents(self, fitness_scores):
         """
-        Select parents based on fitness scores.
+        Select parents based on lower fitness scores.
         """
-        parents_indices = np.argsort(fitness_scores)[:2]  # Select the top 2 individuals
+        parents_indices = np.argsort(fitness_scores)[:2]  # Select the bottom 2 individuals
         parent1, parent2 = self.population[parents_indices[0]], self.population[parents_indices[1]]
-        return parent1, parent2
+        return parent1, parent2, parents_indices[0]
 
     def crossover(self, parent1, parent2):
         """
@@ -52,24 +52,25 @@ class GeneticAlgorithm:
             # Evaluate the fitness of each individual in the population
             fitness_scores = [self.evaluate_params(dict(zip(self.params['names'], params)), iteration) for params in self.population]
 
-            # Select parents based on fitness scores
-            parent1, parent2 = self.select_parents(fitness_scores)
+            # Select parents based on lower fitness scores
+            parent1, parent2, best_index = self.select_parents(fitness_scores)
 
             # Crossover and mutation to create a new generation
             child = self.crossover(parent1, parent2)
             child = self.mutate(child, mutation_rate=0.1)
 
-            # Replace the best individual with the new child
-            best_index = np.argmax(fitness_scores)
-            self.population[best_index] = child
+            # Replace the best individual with the new child only if the child has a lower fitness score
+            child_fitness = self.evaluate_params(dict(zip(self.params['names'], child)), iteration)
+            if child_fitness < fitness_scores[best_index]:
+                self.population[best_index] = child
 
             # Print the best individual in each iteration
-            best_index = np.argmax(fitness_scores)
+            best_index = np.argmin(fitness_scores)
             best_params = self.population[best_index]
             best_score = fitness_scores[best_index]
             print(f"Iteration {iteration + 1}: Best Parameters = {best_params}, Best Score = {best_score}")
 
         # Return the best parameters found
-        best_index = np.argmax(fitness_scores)
+        best_index = np.argmin(fitness_scores)
 
         return self.population[best_index]
